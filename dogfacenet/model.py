@@ -6,21 +6,60 @@ Licensed under the MIT License (see LICENSE for details)
 Written by Guillaume Mougeot
 """
 
+import os
 import numpy as np
+import matplotlib.pyplot as plt
+
 import tensorflow as tf
-import tensorflow.keras.applications as KA
-import tensorflow.keras.layers as KL
+
+import keras.applications as KA
+import keras.layers as KL
+import keras.preprocessing.image as KI
+
+
+PATH_BG = "..\\data\\bg\\"
+PATH_DOG1 = "..\\data\\dog1\\"
+
+
+############################################################
+#  Data analysis
+############################################################
+
+# Retrieve filenames
+filenames_bg = []
+for file in os.listdir(PATH_BG):
+    if ".jpg" in file:
+        filenames_bg += [file]
+
+filename_dog1 = []
+for file in os.listdir(PATH_DOG1):
+    if ".jpg" in file:
+        filenames_bg += [file]
+
+
+# Load images into Numpy arrays
+
+images_bg = KI.img_to_array(KI.load_img(PATH_BG + filenames_bg[0]))
+
 
 ############################################################
 #  NASNet Graph
 ############################################################
 
-base_model = KA.NASNetMobile(input_shape=(224,224,3), include_top=False)
+# Build the model
+def NASNet_embedding(
+  input_shape=(224,224,3),
+  include_top=False
+):
+    base_model = KA.NASNetMobile(input_shape=(224,224,3), include_top=False)
 
-x = base_model.output
-x = KL.GlobalAveragePooling2D()(x)
-x = KL.Dense(1056, activation='relu')(x)
-model = tf.keras.Model(inputs=base_model.input, outputs=x)
+    x = base_model.output
+    x = KL.GlobalAveragePooling2D()(x)
+    x = KL.Dense(1056, activation='relu')(x)
+    x = KL.Dropout(0.5)(x)
+    x = KL.Dense(128)(x)
+    #model = tf.keras.Model(inputs=base_model.input, outputs=x)
+    return x
 
 
 ############################################################
