@@ -11,6 +11,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage.transform import resize
 
+from tqdm import tqdm
+
 import tensorflow as tf
 
 import keras.applications as KA
@@ -48,24 +50,26 @@ IM_C = 3
 
 # Load images into Numpy arrays
 
+def load_imgs(path, filenames, new_shape=(224,224), mode='constant'):
+    image = KI.img_to_array(KI.load_img(path + filenames[0]))/255
+    image = resize(image, new_shape, mode=mode)
+    images = np.array([image])
+    for i in tqdm(range(1, len(filenames))):
+        image = KI.img_to_array(KI.load_img(path + filenames[i]))/255
+        image = resize(image, new_shape, mode=mode)
+        images = np.append(images, [image], axis=0)
+    return images
+
 # Load background images
-image = KI.img_to_array(KI.load_img(PATH_BG + filenames_bg[0]))/255
-image = resize(image, (IM_H, IM_W), mode='reflect')
-images_bg = np.array([image])
-for i in range(1, len(filenames_bg)):
-    image = KI.img_to_array(KI.load_img(PATH_BG + filenames_bg[i]))/255
-    image = resize(image, (IM_H, IM_W), mode='reflect')
-    np.append(images_bg, [image], axis=0)
+images_bg = load_imgs(PATH_BG, filenames_bg, (IM_H, IM_W))
 
 # Load dog 1 images
-image = KI.img_to_array(KI.load_img(PATH_DOG1 + filenames_dog1[0]))/255
-image = resize(image, (IM_H, IM_W), mode='reflect')
-images_dog1 = np.array([image])
-for i in range(1, len(filenames_dog1)):
-    image = KI.img_to_array(KI.load_img(PATH_DOG1 + filenames_dog1[i]))/255
-    image = resize(image, (IM_H, IM_W), mode='reflect')
-    np.append(images_dog1, [image], axis=0)
+images_dog1 = load_imgs(PATH_DOG1, filenames_dog1, (IM_H, IM_W))
 
+plt.imshow(images_dog1[1])
+plt.show()
+
+# Load data into 
 
 ############################################################
 #  NASNet Graph
