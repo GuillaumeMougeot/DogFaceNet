@@ -15,6 +15,7 @@ from tqdm import tqdm
 
 import tensorflow as tf
 
+import keras.models as KM
 import keras.applications as KA
 import keras.layers as KL
 import keras.preprocessing.image as KI
@@ -66,10 +67,17 @@ images_bg = load_imgs(PATH_BG, filenames_bg, (IM_H, IM_W))
 # Load dog 1 images
 images_dog1 = load_imgs(PATH_DOG1, filenames_dog1, (IM_H, IM_W))
 
-plt.imshow(images_dog1[1])
-plt.show()
+# Define the identies of the dogs: dog1->1, bg->[2,len(bg)]
+labels_bg = np.arange(2, len(images_bg)+2)
+labels_dog1 = np.ones(len(images_dog1))
 
-# Load data into 
+# Queue images and labels
+images = np.append(images_dog1, images_bg)
+labels = np.append(labels_dog1, labels_bg)
+
+# Method 1: Load data into Tensorflow tensor
+# dataset = tf.data.Dataset.from_tensor_slices((images, labels))
+
 
 ############################################################
 #  NASNet Graph
@@ -88,17 +96,26 @@ def NASNet_embedding(
     x = KL.Dropout(0.5)(x)
     x = KL.Dense(128)(x)
 
-    return x
+    model = KM.Model(input=base_model.input, output=x)
+    return model
+
+# model = NASNet_embedding(input_shape=(IM_H,IM_W, IM_C))
+# print(model.summary())
+
 
 # With earger execution:
 # tf.enable_eager_execution()
 
-# model = tf.keras.Sequential([
-#   KA.NASNetMobile(input_shape=(224,224,3), include_top=False),
+# base_model = KA.NASNetMobile(input_shape=(224,224,3), include_top=False)
+# model = keras.Sequential(
+#   base_model.layers[1:] + [
 #   KL.GlobalAveragePooling2D(),
 #   KL.Dense(1056, activation='relu'),
 #   KL.Dense(128)
 # ])
+
+
+
 
 
 ############################################################
