@@ -78,6 +78,21 @@ labels = np.append(labels_dog1, labels_bg)
 # Method 1: Load data into Tensorflow tensor
 # dataset = tf.data.Dataset.from_tensor_slices((images, labels))
 
+# Method 2: Use placeholder
+assert images.shape[0] == labels.shape[0]
+
+# Graph elements:
+images_placeholder = tf.placeholder(images.dtype, images.shape)
+labels_placeholder = tf.placeholder(labels.dtype, labels.shape)
+
+# Graph elements:
+dataset = tf.data.Dataset.from_tensor_slices((images_placeholder, labels_placeholder))
+
+# Graph elements:
+iterator = dataset.make_initializable_iterator()
+
+# sess.run(iterator.initializer, feed_dict={images_placeholder: images, labels_placeholder: labels})
+
 
 ############################################################
 #  NASNet Graph
