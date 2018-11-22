@@ -24,9 +24,14 @@ import keras.applications as KA
 import keras.layers as KL
 import keras.preprocessing.image as KI
 
-
+# Paths of images folders
 PATH_BG = "..\\data\\bg\\"
 PATH_DOG1 = "..\\data\\dog1\\"
+
+# Images parameters for network feeding
+IM_H = 224
+IM_W = 224
+IM_C = 3
 
 
 ############################################################
@@ -45,21 +50,18 @@ for file in os.listdir(PATH_DOG1):
         if ".jpg" in file:
                 filenames_dog1 += [file]
 
-
-IM_H = 224
-IM_W = 224
-IM_C = 3
-
-
+# Opens an image file, stores it into a tf.Tensor and reshapes it
 def _parse_function(filename, label):
         image_string = tf.read_file(filename)
         image_decoded = tf.image.decode_jpeg(image_string, channels=3)
         image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
         return image_resized, label
 
-filenames = np.append([PATH_DOG1 + filenames_dog1[i] for i in range(len(filenames_dog1))],
-                [PATH_BG + filenames_bg[i] for i in range(len(filenames_bg))],
-                axis=0)
+filenames = np.append(
+        [PATH_DOG1 + filenames_dog1[i] for i in range(len(filenames_dog1))],
+        [PATH_BG + filenames_bg[i] for i in range(len(filenames_bg))],
+        axis=0
+        )
 labels = np.append(np.ones(len(filenames_dog1)), np.arange(2,2+len(filenames_bg)))
 
 # Filenames and labels place holder
@@ -70,6 +72,7 @@ labels_placeholder = tf.placeholder(labels.dtype, labels.shape)
 dataset = tf.data.Dataset.from_tensor_slices((filenames_placeholder, labels_placeholder))
 dataset = dataset.map(_parse_function)
 
+# Batch the dataset 
 
 ############################################################
 #  NASNet Graph
@@ -78,15 +81,18 @@ dataset = dataset.map(_parse_function)
 
 # Build the model using Keras pretrained model NASNetMobile,
 # a light and efficient network
-def NASNet_embedding(input_tensor,
+def NASNet_embedding(
+        input_tensor,
         input_shape=(224,224,3),
         include_top=False,
         training=True
         ):
 
-        base_model = KA.NASNetMobile(input_tensor=input_tensor,
-                                input_shape=input_shape,
-                                include_top=False)
+        base_model = KA.NASNetMobile(
+                input_tensor=input_tensor,
+                input_shape=input_shape,
+                include_top=False
+                )
         x = KL.GlobalAveragePooling2D()(base_model.output)
         x = KL.Dense(1056, activation='relu')(x)
         if training:
