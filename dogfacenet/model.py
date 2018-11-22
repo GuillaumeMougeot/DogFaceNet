@@ -57,7 +57,9 @@ def _parse_function(filename, label):
     image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
     return image_resized, label
 
-filenames = np.append(filenames_dog1, filenames_bg, axis=0)
+filenames = np.append([PATH_DOG1 + filenames_dog1[i] for i in range(len(filenames_dog1))],
+                [PATH_BG + filenames_bg[i] for i in range(len(filenames_bg))],
+                axis=0)
 labels = np.append(np.ones(len(filenames_dog1)), np.arange(2,2+len(filenames_bg)))
 
 # Filenames and labels place holder
@@ -132,21 +134,37 @@ dataset = dataset.map(_parse_function)
 #  NASNet Graph
 ############################################################
 
-# Build the model
-def NASNet_embedding(
-  input_shape=(224,224,3),
-  include_top=False
-):
-    base_model = KA.NASNetMobile(input_shape=(224,224,3), include_top=False)
+# Start by defining a simple model:
 
-    x = base_model.output
-    x = KL.GlobalAveragePooling2D()(x)
+
+
+# Build the model
+def NASNet_embedding(input_tensor,
+  input_shape=(224,224,3),
+  include_top=False,
+  training=True
+):
+    base_model = KA.NASNetMobile(input_tensor=input_tensor, input_shape=input_shape, include_top=False)
+    x = KL.GlobalAveragePooling2D()(base_model.output)
     x = KL.Dense(1056, activation='relu')(x)
-    x = KL.Dropout(0.5)(x)
+    if training:
+        x = KL.Dropout(0.5)(x)
     x = KL.Dense(128)(x)
 
-    model = KM.Model(input=base_model.input, output=x)
-    return model
+    return x
+
+dataset = dataset.batch(32)
+it = dataset.make_initializable_iterator()
+next_element = it.get_next()
+y_pred = NASNet_embedding(next_element[0])
+
+sess = tf.Session()
+
+init = tf.global_variables_initializer()
+sess.run(it.initializer, feed_dict={filenames_placeholder:filenames, labels_placeholder:labels})
+sess.run(init)
+print(sess.run(y_pred))
+
 
 # model = NASNet_embedding(input_shape=(IM_H,IM_W, IM_C))
 # print(model.summary())
