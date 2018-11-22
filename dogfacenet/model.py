@@ -13,7 +13,6 @@ from __future__ import print_function
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from skimage.transform import resize
 
 from tqdm import tqdm
 
@@ -22,7 +21,7 @@ import tensorflow as tf
 import keras.models as KM
 import keras.applications as KA
 import keras.layers as KL
-import keras.preprocessing.image as KI
+
 
 # Paths of images folders
 PATH_BG = "..\\data\\bg\\"
@@ -32,6 +31,10 @@ PATH_DOG1 = "..\\data\\dog1\\"
 IM_H = 224
 IM_W = 224
 IM_C = 3
+
+# Training parameters:
+EPOCHS = 1
+BATCH_SIZE = 32
 
 
 ############################################################
@@ -73,6 +76,10 @@ dataset = tf.data.Dataset.from_tensor_slices((filenames_placeholder, labels_plac
 dataset = dataset.map(_parse_function)
 
 # Batch the dataset 
+dataset = dataset.repeat(EPOCHS).batch(BATCH_SIZE)
+iterator = dataset.make_initializable_iterator()
+next_element = iterator.get_next()
+
 
 ############################################################
 #  NASNet Graph
@@ -97,19 +104,18 @@ def NASNet_embedding(
         x = KL.Dense(1056, activation='relu')(x)
         if training:
                 x = KL.Dropout(0.5)(x)
-        x = KL.Dense(128)(x)
+        x = KL.Dense(128, activation='relu')(x)
+        x = tf.keras.backend.l2_normalize(x)
 
         return x
 
-dataset = dataset.batch(32)
-it = dataset.make_initializable_iterator()
-next_element = it.get_next()
+# Predict
 y_pred = NASNet_embedding(next_element[0])
 
 sess = tf.Session()
 
 init = tf.global_variables_initializer()
-sess.run(it.initializer, feed_dict={filenames_placeholder:filenames, labels_placeholder:labels})
+sess.run(iterator.initializer, feed_dict={filenames_placeholder:filenames, labels_placeholder:labels})
 sess.run(init)
 print(sess.run(y_pred))
 
@@ -138,3 +144,7 @@ def triplet_loss(anchor, positive, negative, alpha):
                 loss = tf.reduce_mean(tf.maximum(basic_loss, 0.0), 0)
 
         return loss
+
+
+def Deviation_loss(dic):
+        return 0
