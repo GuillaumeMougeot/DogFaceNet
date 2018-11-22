@@ -2,6 +2,7 @@ data/
 tmp/
 .vscode/
 *.h5
+events.out.tfevents.*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
