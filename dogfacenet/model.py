@@ -88,12 +88,14 @@ next_element = iterator.get_next()
 # data_loss = tf.data.Dataset.from_tensor_slices((filenames_placeholder, (labels_placeholder, embedding_placeholder)))
 
 # Defining the global prediction dictionary
-data_dict = np.concatenate(
-        (np.expand_dims(filenames,1), np.expand_dims(labels,1)),
-        axis = 1
-        )
+# data_dict = np.concatenate(
+#         (np.expand_dims(filenames,1), np.expand_dims(labels,1)),
+#         axis = 1
+#         )
 
-dict_pred = {filename:(label, np.random.random_sample((EMB_SIZE,))) for filename, label in data_dict}
+# dict_pred = {filename:(label, np.random.random_sample((EMB_SIZE,))) for filename, label in data_dict}
+
+
 
 
 ############################################################
@@ -126,6 +128,8 @@ dict_pred = {filename:(label, np.random.random_sample((EMB_SIZE,))) for filename
 
 class NASNet_embedding(tf.keras.Model):
         def __init__(self):
+                super(NASNet_embedding, self).__init__(name='')
+
                 self.pool = KL.GlobalAveragePooling2D()
                 self.dense_1 = KL.Dense(1056, activation='relu')
                 self.dropout = KL.Dropout(0.5)
@@ -149,14 +153,13 @@ class NASNet_embedding(tf.keras.Model):
 # Predict
 model = NASNet_embedding()
 y_pred = model(next_element[0])
-filenames_pred, labels_pred = next_element[1]
+
 sess = tf.Session()
 
 init = tf.global_variables_initializer()
 sess.run(iterator.initializer, feed_dict={filenames_placeholder:filenames, labels_placeholder:labels})
 sess.run(init)
 print(sess.run(y_pred))
-print(filenames_pred, labels_pred)
 
 ############################################################
 #  Loss Functions
