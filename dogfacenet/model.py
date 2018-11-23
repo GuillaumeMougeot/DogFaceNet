@@ -147,7 +147,8 @@ class NASNet_embedding(tf.keras.Model):
 
 
 # Predict
-y_pred = NASNet_embedding(next_element[0])
+model = NASNet_embedding()
+y_pred = model(next_element[0])
 filenames_pred, labels_pred = next_element[1]
 sess = tf.Session()
 
