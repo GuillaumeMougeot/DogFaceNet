@@ -75,7 +75,7 @@ filenames_placeholder = tf.placeholder(filenames.dtype, filenames.shape)
 labels_placeholder = tf.placeholder(labels.dtype, labels.shape)
 
 # Defining dataset
-dataset = tf.data.Dataset.from_tensor_slices((filenames_placeholder, (filenames_placeholder, labels_placeholder)))
+dataset = tf.data.Dataset.from_tensor_slices((filenames_placeholder, labels_placeholder))
 dataset = dataset.map(_parse_function)
 
 # Batch the dataset for training
@@ -83,18 +83,10 @@ data_train = dataset.repeat(EPOCHS).batch(BATCH_SIZE)
 iterator = data_train.make_initializable_iterator()
 next_element = iterator.get_next()
 
-# Define the dataset for loss computation
-# embedding_placeholder = tf.placeholder(tf.float32, shape=(None, EMB_SIZE))
-# data_loss = tf.data.Dataset.from_tensor_slices((filenames_placeholder, (labels_placeholder, embedding_placeholder)))
-
-# Defining the global prediction dictionary
-# data_dict = np.concatenate(
-#         (np.expand_dims(filenames,1), np.expand_dims(labels,1)),
-#         axis = 1
-#         )
-
-# dict_pred = {filename:(label, np.random.random_sample((EMB_SIZE,))) for filename, label in data_dict}
-
+# Define the global step and dropout rate
+global_step = tf.Variable(name='global_step', initial_value=0, trainable=False)
+inc_op = tf.assign_add(global_step, 1, name='increment_global_step')
+dropout_rate = tf.placeholder(name='dropout_rate', dtype=tf.float32)
 
 
 
@@ -136,12 +128,13 @@ class NASNet_embedding(tf.keras.Model):
                 self.dense_2 = KL.Dense(EMB_SIZE)
         
         def __call__(self, input_tensor, input_shape=(224,224,3), training=False):
-                base_model = KA.NASNetMobile(
-                        input_tensor=input_tensor,
-                        input_shape=input_shape,
-                        include_top=False
-                        )
-                x = self.pool(base_model.output)
+                # base_model = KA.NASNetMobile(
+                #         input_tensor=input_tensor,
+                #         input_shape=input_shape,
+                #         include_top=False
+                #         )
+                # x = self.pool(base_model.output)
+                x = self.pool(input_tensor)
                 x = self.dense_1(x)
                 if training:
                         x = self.dropout(x)
@@ -152,18 +145,70 @@ class NASNet_embedding(tf.keras.Model):
 
 # Predict
 model = NASNet_embedding()
-y_pred = model(next_element[0])
 
-sess = tf.Session()
+
+############################################################
+#  Training session
+############################################################
+
 
 init = tf.global_variables_initializer()
-sess.run(iterator.initializer, feed_dict={filenames_placeholder:filenames, labels_placeholder:labels})
-sess.run(init)
-print(sess.run(y_pred))
+
+with tf.Session() as sess:
+        sess.run(iterator.initializer, feed_dict={filenames_placeholder:filenames, labels_placeholder:labels})
+        sess.run(init)
+        print(sess.run(y_pred))
+
 
 ############################################################
 #  Loss Functions
 ############################################################
+
+def arcface_loss(embedding, labels, out_num, w_init=None, s=64., m=0.5):
+    '''
+    :param embedding: the input embedding vectors
+    :param labels:  the input labels, the shape should be eg: (batch_size, 1)
+    :param s: scalar value default is 64
+    :param out_num: output class num
+    :param m: the margin value, default is 0.5
+    :return: the final cacualted output, this output is send into the tf.nn.softmax directly
+    '''
+    cos_m = math.cos(m)
+    sin_m = math.sin(m)
+    mm = sin_m * m  # issue 1
+    threshold = math.cos(math.pi - m)
+    with tf.variable_scope('arcface_loss'):
+        # inputs and weights norm
+        embedding_norm = tf.norm(embedding, axis=1, keep_dims=True)
+        embedding = tf.div(embedding, embedding_norm, name='norm_embedding')
+        weights = tf.get_variable(name='embedding_weights', shape=(embedding.get_shape().as_list()[-1], out_num),
+                                  initializer=w_init, dtype=tf.float32)
+        weights_norm = tf.norm(weights, axis=0, keep_dims=True)
+        weights = tf.div(weights, weights_norm, name='norm_weights')
+        # cos(theta+m)
+        cos_t = tf.matmul(embedding, weights, name='cos_t')
+        cos_t2 = tf.square(cos_t, name='cos_2')
+        sin_t2 = tf.subtract(1., cos_t2, name='sin_2')
+        sin_t = tf.sqrt(sin_t2, name='sin_t')
+        cos_mt = s * tf.subtract(tf.multiply(cos_t, cos_m), tf.multiply(sin_t, sin_m), name='cos_mt')
+
+        # this condition controls the theta+m should in range [0, pi]
+        #      0<=theta+m<=pi
+        #     -m<=theta<=pi-m
+        cond_v = cos_t - threshold
+        cond = tf.cast(tf.nn.relu(cond_v, name='if_else'), dtype=tf.bool)
+
+        keep_val = s*(cos_t - mm)
+        cos_mt_temp = tf.where(cond, cos_mt, keep_val)
+
+        mask = tf.one_hot(labels, depth=out_num, name='one_hot_mask')
+        # mask = tf.squeeze(mask, 1)
+        inv_mask = tf.subtract(1., mask, name='inverse_mask')
+
+        s_cos_t = tf.multiply(s, cos_t, name='scalar_cos_t')
+
+        output = tf.add(tf.multiply(s_cos_t, inv_mask), tf.multiply(cos_mt_temp, mask), name='arcface_loss_output')
+    return output
 
 
 def triplet_loss(anchor, positive, negative, alpha):
