@@ -89,7 +89,6 @@ inc_op = tf.assign_add(global_step, 1, name='increment_global_step')
 dropout_rate = tf.placeholder(name='dropout_rate', dtype=tf.float32)
 
 
-
 ############################################################
 #  NASNet Graph
 ############################################################
