@@ -102,11 +102,6 @@ class NASNet_embedding(tf.keras.Model):
                 self.dense_2 = tf.layers.Dense(EMB_SIZE)
         
         def __call__(self, input_tensor, input_shape=(224,224,3), training=False, unfreeze=True):
-                # base_model = KA.NASNetMobile(
-                #         input_tensor=input_tensor,
-                #         input_shape=input_shape,
-                #         include_top=False
-                #         )
                 # base_model = tf.keras.applications.NASNetMobile(
                 #         input_tensor=input_tensor,
                 #         input_shape=input_shape,
@@ -150,7 +145,7 @@ acc = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(pred, axis=1), next_labels), dty
 
 init = tf.global_variables_initializer()
 
-with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+with tf.Session() as sess:
 
         summary = tf.summary.FileWriter('../output/summary', sess.graph)
         summaries = []

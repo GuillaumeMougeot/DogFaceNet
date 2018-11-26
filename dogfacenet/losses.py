@@ -17,7 +17,7 @@ def arcface_loss(embedding, labels, out_num, w_init=None, s=64., m=0.5):
     sin_m = math.sin(m)
     mm = sin_m * m  # issue 1
     threshold = math.cos(math.pi - m)
-    with tf.variable_scope('arcface_loss'):
+    with tf.variable_scope('loss'):
         # inputs and weights norm
         embedding_norm = tf.norm(embedding, axis=1, keep_dims=True)
         embedding = tf.div(embedding, embedding_norm, name='norm_embedding')
@@ -32,7 +32,7 @@ def arcface_loss(embedding, labels, out_num, w_init=None, s=64., m=0.5):
         sin_t = tf.sqrt(sin_t2, name='sin_t')
         cos_mt = s * tf.subtract(tf.multiply(cos_t, cos_m), tf.multiply(sin_t, sin_m), name='cos_mt')
 
-        # this condition controls the theta+m should in range [0, pi]
+        # this condition controls the theta+m should be in range [0, pi]
         #      0<=theta+m<=pi
         #     -m<=theta<=pi-m
         cond_v = cos_t - threshold
