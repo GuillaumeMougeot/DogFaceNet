@@ -22,8 +22,8 @@ from losses import arcface_loss
 
 
 # Paths of images folders
-PATH_BG = "..\\data\\bg\\"
-PATH_DOG1 = "..\\data\\dog1\\"
+PATH_BG = "../data/bg/"
+PATH_DOG1 = "../data/dog1/"
 
 # Images parameters for network feeding
 IM_H = 224
