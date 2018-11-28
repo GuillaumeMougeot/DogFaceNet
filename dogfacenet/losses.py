@@ -52,49 +52,49 @@ def arcface_loss(embedding, labels, out_num, w_init=None, s=64., m=0.5):
 
 
 def triplet_loss(anchor, positive, negative, alpha):
-        """Calculate the triplet loss according to the FaceNet paper
+    """Calculate the triplet loss according to the FaceNet paper
 
-        Args:
-        anchor: the embeddings for the anchor images.
-        positive: the embeddings for the positive images.
-        negative: the embeddings for the negative images.
+    Args:
+    anchor: the embeddings for the anchor images.
+    positive: the embeddings for the positive images.
+    negative: the embeddings for the negative images.
 
-        Returns:
-        the triplet loss according to the FaceNet paper as a float tensor.
-        """
-        with tf.variable_scope('triplet_loss'):
-                pos_dist = tf.reduce_sum(tf.square(tf.subtract(anchor, positive)), 1)
-                neg_dist = tf.reduce_sum(tf.square(tf.subtract(anchor, negative)), 1)
+    Returns:
+    the triplet loss according to the FaceNet paper as a float tensor.
+    """
+    with tf.variable_scope('triplet_loss'):
+        pos_dist = tf.reduce_sum(tf.square(tf.subtract(anchor, positive)), 1)
+        neg_dist = tf.reduce_sum(tf.square(tf.subtract(anchor, negative)), 1)
 
-                basic_loss = tf.add(tf.subtract(pos_dist,neg_dist), alpha)
-                loss = tf.reduce_mean(tf.maximum(basic_loss, 0.0), 0)
+        basic_loss = tf.add(tf.subtract(pos_dist,neg_dist), alpha)
+        loss = tf.reduce_mean(tf.maximum(basic_loss, 0.0), 0)
 
-        return loss
+    return loss
 
 
 def deviation_loss(dict_pred):
-        sum_class_loss = 0
-        classes_loss = 0
+    sum_class_loss = 0
+    classes_loss = 0
 
-        class_pred = {}
+    class_pred = {}
 
-        # Compute all center of mass
-        for _, (label, pred) in dict_pred:
-                if label in class_pred.keys():
-                        class_pred[label][0] += pred
-                        class_pred[label][1] += 1
-                else:
-                        class_pred[label] = (pred,1)
-        for label in class_pred:
-                class_pred[label][0] /= class_pred[label][1]
+    # Compute all center of mass
+    for _, (label, pred) in dict_pred:
+        if label in class_pred.keys():
+            class_pred[label][0] += pred
+            class_pred[label][1] += 1
+        else:
+            class_pred[label] = (pred,1)
+    for label in class_pred:
+            class_pred[label][0] /= class_pred[label][1]
 
-        # Compute all classes center of mass
-        class_pred_values = np.array(class_pred.values())
-        classes_center = np.sum(class_pred_values)/len(class_pred)
-        classes_loss -= np.sum(np.log(np.linalg.norm(class_pred_values - classes_center)))
-        
-        # Compute 
-        for _, (label, pred) in dict_pred:
-                sum_class_loss += np.linalg.norm(pred - class_pred[label])
+    # Compute all classes center of mass
+    class_pred_values = np.array(class_pred.values())
+    classes_center = np.sum(class_pred_values)/len(class_pred)
+    classes_loss -= np.sum(np.log(np.linalg.norm(class_pred_values - classes_center)))
+    
+    # Compute 
+    for _, (label, pred) in dict_pred:
+        sum_class_loss += np.linalg.norm(pred - class_pred[label])
 
-        return classes_loss + sum_class_loss
+    return classes_loss + sum_class_loss

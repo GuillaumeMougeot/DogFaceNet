@@ -52,10 +52,10 @@ labels_placeholder = tf.placeholder(tf.int64, labels_train.shape)
 
 # Opens an image file, stores it into a tf.Tensor and reshapes it
 def _parse_function(filename, label):
-        image_string = tf.read_file(filename)
-        image_decoded = tf.image.decode_jpeg(image_string, channels=3)
-        image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
-        return image_resized, label
+    image_string = tf.read_file(filename)
+    image_decoded = tf.image.decode_jpeg(image_string, channels=3)
+    image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
+    return image_resized, label
 
 dataset = tf.data.Dataset.from_tensor_slices((filenames_placeholder, labels_placeholder))
 dataset = dataset.map(_parse_function)
@@ -77,30 +77,30 @@ dropout_rate = tf.placeholder(name='dropout_rate', dtype=tf.float32)
 
 
 class NASNet_embedding(tf.keras.models.Model):
-        def __init__(self):
-                super(NASNet_embedding, self).__init__(name='')
+    def __init__(self):
+        super(NASNet_embedding, self).__init__(name='')
 
-                self.pool = tf.keras.layers.GlobalAveragePooling2D()
-                self.dense_1 = tf.layers.Dense(1056, activation='relu')
-                self.dropout = tf.layers.Dropout(0.5)
-                self.dense_2 = tf.layers.Dense(EMB_SIZE)
-        
-        def __call__(self, input_tensor, input_shape=(224,224,3), training=False, unfreeze=True):
-                # base_model = tf.keras.applications.NASNetMobile(
-                #         input_tensor=input_tensor,
-                #         input_shape=input_shape,
-                #         include_top=False
-                #         )
+        self.pool = tf.keras.layers.GlobalAveragePooling2D()
+        self.dense_1 = tf.layers.Dense(1056, activation='relu')
+        self.dropout = tf.layers.Dropout(0.5)
+        self.dense_2 = tf.layers.Dense(EMB_SIZE)
+    
+    def __call__(self, input_tensor, input_shape=(224,224,3), training=False, unfreeze=True):
+        # base_model = tf.keras.applications.NASNetMobile(
+        #         input_tensor=input_tensor,
+        #         input_shape=input_shape,
+        #         include_top=False
+        #         )
 
-                # for layer in base_model.layers: layer.trainable = False
-                # x = self.pool(base_model.output)
-                x = self.pool(input_tensor)
-                x = self.dense_1(x)
-                if training:
-                        x = self.dropout(x)
-                x = self.dense_2(x)
+        # for layer in base_model.layers: layer.trainable = False
+        # x = self.pool(base_model.output)
+        x = self.pool(input_tensor)
+        x = self.dense_1(x)
+        if training:
+            x = self.dropout(x)
+        x = self.dense_2(x)
 
-                return tf.keras.backend.l2_normalize(x)
+        return tf.keras.backend.l2_normalize(x)
 
 model = NASNet_embedding()
 
@@ -131,26 +131,28 @@ init = tf.global_variables_initializer()
 
 with tf.Session() as sess:
 
-        summary = tf.summary.FileWriter('../output/summary', sess.graph)
-        summaries = []
-        for var in tf.trainable_variables():
-                summaries.append(tf.summary.histogram(var.op.name, var))
-        summaries.append(tf.summary.scalar('inference_loss', loss))
-        summary_op = tf.summary.merge(summaries)
-        saver = tf.train.Saver(max_to_keep=100)
+    summary = tf.summary.FileWriter('../output/summary', sess.graph)
+    summaries = []
+    for var in tf.trainable_variables():
+        summaries.append(tf.summary.histogram(var.op.name, var))
+    summaries.append(tf.summary.scalar('inference_loss', loss))
+    summary_op = tf.summary.merge(summaries)
+    saver = tf.train.Saver(max_to_keep=100)
 
-        sess.run(init)    
+    sess.run(init)
 
-        count = 0
+    count = 0
 
-        for i in tqdm(range(EPOCHS)):
-                feed_dict = {filenames_placeholder:filenames_train, labels_placeholder:labels_train}
-                sess.run(iterator.initializer, feed_dict=feed_dict)
-                while True:
-                        try:
-                                _, loss_value, summary_op_value = sess.run((train, loss, summary_op))
-                                summary.add_summary(summary_op_value, count)
-                                count += 1
-                                print(loss_value)
-                        except tf.errors.OutOfRangeError:
-                                break
+    for i in tqdm(range(EPOCHS)):
+        feed_dict = {filenames_placeholder: filenames_train,
+                        labels_placeholder: labels_train}
+        sess.run(iterator.initializer, feed_dict=feed_dict)
+        while True:
+            try:
+                _, loss_value, summary_op_value = sess.run(
+                    (train, loss, summary_op))
+                summary.add_summary(summary_op_value, count)
+                count += 1
+                print(loss_value)
+            except tf.errors.OutOfRangeError:
+                break
