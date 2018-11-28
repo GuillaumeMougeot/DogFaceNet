@@ -24,8 +24,8 @@ def get_dataset(PATH_BG, PATH_DOG1, TRAIN_SPLIT):
 
     # Splits the dataset
 
-    split_dog1 = TRAIN_SPLIT * len(filenames_dog1)
-    split_bg = TRAIN_SPLIT * len(filenames_bg) 
+    split_dog1 = int(TRAIN_SPLIT * len(filenames_dog1))
+    split_bg = int(TRAIN_SPLIT * len(filenames_bg))
 
     ## Training set
 

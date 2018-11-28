@@ -19,11 +19,11 @@ def arcface_loss(embedding, labels, out_num, w_init=None, s=64., m=0.5):
     threshold = math.cos(math.pi - m)
     with tf.variable_scope('loss'):
         # inputs and weights norm
-        embedding_norm = tf.norm(embedding, axis=1, keep_dims=True)
+        embedding_norm = tf.norm(embedding, axis=1, keepdims=True)
         embedding = tf.div(embedding, embedding_norm, name='norm_embedding')
         weights = tf.get_variable(name='embedding_weights', shape=(embedding.get_shape().as_list()[-1], out_num),
                                   initializer=w_init, dtype=tf.float32)
-        weights_norm = tf.norm(weights, axis=0, keep_dims=True)
+        weights_norm = tf.norm(weights, axis=0, keepdims=True)
         weights = tf.div(weights, weights_norm, name='norm_weights')
         # cos(theta+m)
         cos_t = tf.matmul(embedding, weights, name='cos_t')
