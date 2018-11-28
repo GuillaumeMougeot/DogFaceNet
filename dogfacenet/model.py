@@ -10,8 +10,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os
-import numpy as np
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
@@ -19,7 +17,7 @@ from tqdm import tqdm
 import tensorflow as tf
 
 from losses import arcface_loss
-
+from dataset import get_dataset
 
 # Paths of images folders
 PATH_BG = "../data/bg/"
@@ -40,56 +38,11 @@ EMB_SIZE = 128
 
 
 ############################################################
-#  Data analysis
+#  Data pre-processing
 ############################################################
 
 
-# Retrieve filenames
-filenames_bg = []
-for file in os.listdir(PATH_BG):
-        if ".jpg" in file:
-                filenames_bg += [file]
-
-filenames_dog1 = []
-for file in os.listdir(PATH_DOG1):
-        if ".jpg" in file:
-                filenames_dog1 += [file]
-
-# Splits the dataset
-
-split_dog1 = TRAIN_SPLIT * len(filenames_dog1)
-split_bg = TRAIN_SPLIT * len(filenames_bg) 
-
-## Training set
-
-filenames_dog1_train = filenames_dog1[:split_dog1]
-filenames_bg_train = filenames_bg[:split_bg]
-
-filenames_train = np.append(
-        [PATH_DOG1 + filenames_dog1_train[i] for i in range(len(filenames_dog1_train))],
-        [PATH_BG + filenames_bg_train[i] for i in range(len(filenames_bg_train))],
-        axis=0
-        )
-# labels_train = [1,1,1,...,1,2,3,...,len(filenames_bg_train)] <-- there are len(filenames_dog1_train) ones
-labels_train = np.append(np.ones(len(filenames_dog1_train)), np.arange(2,2+len(filenames_bg_train)))
-
-assert len(filenames_train)==len(labels_train)
-
-## Validation set
-filenames_dog1_valid = filenames_dog1[split_dog1:]
-filenames_bg_valid = filenames_bg[split_bg:]
-
-filenames_valid = np.append(
-        [PATH_DOG1 + filenames_dog1_valid[i] for i in range(len(filenames_dog1_valid))],
-        [PATH_BG + filenames_bg_valid[i] for i in range(len(filenames_bg_valid))],
-        axis=0
-        )
-
-# labels_valid = [1,1,1,...,1,labels_train[-1]+1,labels_train[-1]+2,...,len(filenames_bg_valid)+labels_train[-1]+1]
-# <-- there are len(filenames_dog1_valid) ones
-labels_valid = np.append(np.ones(len(filenames_dog1_valid)), np.arange(labels_train[-1]+1,labels_train[-1]+1+len(filenames_bg_valid)))
-
-
+filenames_train, labels_train, filenames_valid, labels_valid = get_dataset(PATH_BG, PATH_DOG1, TRAIN_SPLIT)
 
 # Filenames and labels place holder
 filenames_placeholder = tf.placeholder(filenames_train.dtype, filenames_train.shape)
@@ -190,7 +143,7 @@ with tf.Session() as sess:
 
         count = 0
 
-        for i in range(EPOCHS):
+        for i in tqdm(range(EPOCHS)):
                 feed_dict = {filenames_placeholder:filenames_train, labels_placeholder:labels_train}
                 sess.run(iterator.initializer, feed_dict=feed_dict)
                 while True:
