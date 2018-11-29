@@ -21,6 +21,9 @@ def get_dataset(path='../data/', train_split=0.8):
 
     filenames_valid = []
     labels_valid = []
+
+    count_labels = 0
+
     for root, _, files in os.walk(path):
         n = len(files)
         if n>0:
@@ -31,6 +34,8 @@ def get_dataset(path='../data/', train_split=0.8):
                 label = int(root[11:])
             
             split = int(train_split * n)
+
+            count_labels += 1
 
             labels_train += [label for _ in range(split)]
             filenames_train += [root + '/' + files[i] for i in range(split)]
@@ -51,4 +56,4 @@ def get_dataset(path='../data/', train_split=0.8):
             labels_valid[i] = count_valid
             count_valid += 1
 
-    return np.array(filenames_train), np.array(labels_train), np.array(filenames_valid), np.array(labels_valid)
+    return np.array(filenames_train), np.array(labels_train), np.array(filenames_valid), np.array(labels_valid), count_labels

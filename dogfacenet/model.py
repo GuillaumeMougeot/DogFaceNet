@@ -45,7 +45,7 @@ EMB_SIZE = 128
 # Retrieve dataset from folders
 # filenames_train, labels_train, filenames_valid, labels_valid = get_dataset(
 #     PATH_BG, PATH_DOG1, TRAIN_SPLIT)
-filenames_train, labels_train, filenames_valid, labels_valid = get_dataset()
+filenames_train, labels_train, filenames_valid, labels_valid, count_labels = get_dataset()
 
 # Filenames and labels place holder
 filenames_train_placeholder = tf.placeholder(
@@ -70,10 +70,17 @@ data_train = tf.data.Dataset.from_tensor_slices(
     (filenames_train_placeholder, labels_train_placeholder))
 data_train = data_train.map(_parse_function)
 
+data_valid = tf.data.Dataset.from_tensor_slices((filenames_valid_placeholder,labels_valid_placeholder))
+data_valid = data_valid.map(_parse_function)
+
 # Batch the dataset for training
 data_train = data_train.shuffle(1000).batch(BATCH_SIZE)
 iterator = data_train.make_initializable_iterator()
 next_element = iterator.get_next()
+
+data_valid = data_valid.batch(BATCH_SIZE)
+it_valid = data_valid.make_initializable_iterator()
+next_valid = it_valid.get_next()
 
 # Pre
 
@@ -247,14 +254,28 @@ class NASNet_embedding(tf.keras.Model):
 
 model = Dummy_embedding(EMB_SIZE)
 
+# Training
 next_images, next_labels = next_element
 
 output = model(next_images)
 
 logit = arcface_loss(embedding=output, labels=next_labels,
-                     w_init=None, out_num=len(labels_train))
+                     w_init=None, out_num=count_labels)
 loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
     logits=logit, labels=next_labels))
+
+# Validation
+next_images_valid, next_labels_valid = next_valid
+
+output_valid = model(next_images_valid)
+
+logit_valid = arcface_loss(embedding=output_valid, labels=next_labels_valid,
+                     w_init=None, out_num=count_labels)
+loss_valid = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+    logits=logit_valid, labels=next_labels_valid))
+
+pred_valid = tf.nn.softmax(logit_valid)
+acc_valid = tf.reduce_mean(tf.cast(tf.equal(tf.argmin(pred_valid, axis=1), next_labels_valid), dtype=tf.float32))
 
 # Optimizer
 lr = 0.01
@@ -286,11 +307,11 @@ with tf.Session() as sess:
 
     sess.run(init)
 
-    count = 0
-
     # Training
     nrof_batches = len(filenames_train)//BATCH_SIZE + 1
+    nrof_batches_valid = len(filenames_train)//BATCH_SIZE + 1
 
+    print("Start of training...")
     for i in range(EPOCHS):
         
         feed_dict = {filenames_train_placeholder: filenames_train,
@@ -298,19 +319,39 @@ with tf.Session() as sess:
 
         sess.run(iterator.initializer, feed_dict=feed_dict)
 
-        
-        for _ in trange(nrof_batches):
+        feed_dict_valid = {filenames_valid_placeholder: filenames_valid,
+                           labels_valid_placeholder: labels_valid}
+
+        sess.run(it_valid.initializer, feed_dict=feed_dict_valid)
+
+        # Training
+        for j in trange(nrof_batches):
             try:
                 _, loss_value, summary_op_value, acc_value = sess.run((train, loss, summary_op, acc))
                 # summary.add_summary(summary_op_value, count)
-                count += 1
-                tqdm.write("\n Batch: " + str(count-1)
+                tqdm.write("\n Batch: " + str(j)
                     + ", Loss: " + str(loss_value)
                     + ", Accuracy: " + str(acc_value)
                     )
 
             except tf.errors.OutOfRangeError:
                 break
+        
+        # Validation
+        print("Start validation...")
+        tot_acc = 0
+        for _ in trange(nrof_batches_valid):
+            try:
+                loss_valid_value, acc_valid_value = sess.run((loss_valid, acc_valid))
+                tot_acc += acc_valid_value
+                tqdm.write("Loss: " + str(loss_valid_value)
+                    + ", Accuracy: " + str(acc_valid_value)
+                    )
+
+            except tf.errors.OutOfRangeError:
+                break
+        print("End of validation. Total accuray: " + str(tot_acc/nrof_batches_valid))
+
 
     print("End of training.")
     print("Start evaluation...")
