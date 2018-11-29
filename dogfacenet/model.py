@@ -12,7 +12,7 @@ from __future__ import print_function
 
 import matplotlib.pyplot as plt
 
-from tqdm import tqdm
+from tqdm import tqdm, trange
 
 import tensorflow as tf
 
@@ -88,6 +88,31 @@ next_element = iterator.get_next()
 ############################################################
 
 
+class Dummy_embedding(tf.keras.Model):
+    def __init__(self, emb_size):
+        super(Dummy_embedding, self).__init__(name='dummy')
+        self.conv1 = tf.keras.layers.Conv2D(10,(3, 3))
+        self.pool1 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv2 = tf.keras.layers.Conv2D(20,(3, 3))
+        self.pool2 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv3 = tf.keras.layers.Conv2D(40,(3, 3))
+        self.pool3 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv4 = tf.keras.layers.Conv2D(80,(3, 3))
+        self.avg_pool = tf.keras.layers.GlobalAveragePooling2D()
+        self.dense = tf.layers.Dense(emb_size)
+    
+    def __call__(self, input_tensor):
+        x = self.conv1(input_tensor)
+        x = self.pool1(x)
+        x = self.conv2(x)
+        x = self.pool2(x)
+        x = self.conv3(x)
+        x = self.pool3(x)
+        x = self.avg_pool(x)
+        x = self.dense(x)
+
+        return tf.nn.l2_normalize(x)
+
 class ResnetIdentityBlock(tf.keras.Model):
     def __init__(self, kernel_size, filters):
         super(ResnetIdentityBlock, self).__init__(name='')
@@ -152,9 +177,9 @@ class ResnetConvBlock(tf.keras.Model):
         x += shortcut
         return tf.nn.relu(x)
 
-
-class ResNet50_embedding(tf.keras.Model):
+class ResNet_embedding(tf.keras.Model):
     def __init__(self, emb_size):
+        super(ResNet_embedding, self).__init__(name='resnet')
         self.conv1_pad = tf.keras.layers.ZeroPadding2D(padding=(3,3))
         self.conv1 = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2))
         self.bn_conv1 = tf.keras.layers.BatchNormalization()
@@ -162,14 +187,16 @@ class ResNet50_embedding(tf.keras.Model):
         self.pool1_pad = tf.keras.layers.ZeroPadding2D(padding=(1,1))
         self.pool1 = tf.keras.layers.MaxPooling2D((3, 3), strides=(2, 2))
 
-        filters = [[64,64,256], [128,128,512], [256,256,1024], [512,512,2048]]
-        nrof_identity_block = [2,3,5,2]
+        #filters = [[64,64,256], [128,128,512], [256,256,1024], [512,512,2048]]
+        #nrof_identity_block = [2,3,5,2]
+        filters = [[64,64,256]]
+        nrof_identity_block = [1]
 
-        self.layers = []
+        self.in_layers = []
         for i in range(len(filters)):
-            self.layers += [ResnetConvBlock(3, filters[i])]
+            self.in_layers += [ResnetConvBlock(3, filters[i])]
             for _ in range(nrof_identity_block[i]):
-                self.layers += [ResnetIdentityBlock(3, filters[i])]
+                self.in_layers += [ResnetIdentityBlock(3, filters[i])]
         
         self.avg_pool = tf.keras.layers.GlobalAveragePooling2D()
         self.embedding = tf.keras.layers.Dense(emb_size)
@@ -182,8 +209,8 @@ class ResNet50_embedding(tf.keras.Model):
         x = self.pool1_pad(x)
         x = self.pool1(x)
 
-        for layer in self.layers:
-            x = layer(x, training=training)
+        for in_layer in self.in_layers:
+            x = in_layer(x, training=training)
         
         x = self.avg_pool(x)
         x = self.embedding(x)
@@ -218,7 +245,7 @@ class NASNet_embedding(tf.keras.Model):
         return tf.keras.backend.l2_normalize(x)
 
 
-model = ResNet50_embedding(EMB_SIZE)
+model = Dummy_embedding(EMB_SIZE)
 
 next_images, next_labels = next_element
 
@@ -262,20 +289,22 @@ with tf.Session() as sess:
     count = 0
 
     # Training
+    nrof_batches = len(filenames_train)//BATCH_SIZE + 1
 
-    for i in tqdm(range(EPOCHS)):
+    for i in range(EPOCHS):
         
         feed_dict = {filenames_train_placeholder: filenames_train,
                      labels_train_placeholder: labels_train}
 
         sess.run(iterator.initializer, feed_dict=feed_dict)
 
-        while True:
+        
+        for _ in trange(nrof_batches):
             try:
                 _, loss_value, summary_op_value, acc_value = sess.run((train, loss, summary_op, acc))
-                summary.add_summary(summary_op_value, count)
+                # summary.add_summary(summary_op_value, count)
                 count += 1
-                print("\n Batch: " + str(count-1)
+                tqdm.write("\n Batch: " + str(count-1)
                     + ", Loss: " + str(loss_value)
                     + ", Accuracy: " + str(acc_value)
                     )
