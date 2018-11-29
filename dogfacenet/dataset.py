@@ -10,55 +10,11 @@ import numpy as np
 import os
 
 
-def get_dataset(PATH_BG, PATH_DOG1, TRAIN_SPLIT):
-    # Retrieve filenames
-    filenames_bg = []
-    for file in os.listdir(PATH_BG):
-            if ".jpg" in file:
-                    filenames_bg += [file]
-
-    filenames_dog1 = []
-    for file in os.listdir(PATH_DOG1):
-            if ".jpg" in file:
-                    filenames_dog1 += [file]
-
-    # Splits the dataset
-
-    split_dog1 = int(TRAIN_SPLIT * len(filenames_dog1))
-    split_bg = int(TRAIN_SPLIT * len(filenames_bg))
-
-    ## Training set
-
-    filenames_dog1_train = filenames_dog1[:split_dog1]
-    filenames_bg_train = filenames_bg[:split_bg]
-
-    filenames_train = np.append(
-            [PATH_DOG1 + filenames_dog1_train[i] for i in range(len(filenames_dog1_train))],
-            [PATH_BG + filenames_bg_train[i] for i in range(len(filenames_bg_train))],
-            axis=0
-            )
-    # labels_train = [1,1,1,...,1,2,3,...,len(filenames_bg_train)] <-- there are len(filenames_dog1_train) ones
-    labels_train = np.append(np.ones(len(filenames_dog1_train)), np.arange(2,2+len(filenames_bg_train)))
-
-    assert len(filenames_train)==len(labels_train)
-
-    ## Validation set
-    filenames_dog1_valid = filenames_dog1[split_dog1:]
-    filenames_bg_valid = filenames_bg[split_bg:]
-
-    filenames_valid = np.append(
-            [PATH_DOG1 + filenames_dog1_valid[i] for i in range(len(filenames_dog1_valid))],
-            [PATH_BG + filenames_bg_valid[i] for i in range(len(filenames_bg_valid))],
-            axis=0
-            )
-
-    # labels_valid = [1,1,1,...,1,labels_train[-1]+1,labels_train[-1]+2,...,len(filenames_bg_valid)+labels_train[-1]+1]
-    # <-- there are len(filenames_dog1_valid) ones
-    labels_valid = np.append(np.ones(len(filenames_dog1_valid)), np.arange(labels_train[-1]+1,labels_train[-1]+1+len(filenames_bg_valid)))
-    return filenames_train, labels_train, filenames_valid, labels_valid
-
-def get_dataset2(path, train_split):
-    # Retrieve filenames
+def get_dataset(path='../data/', train_split=0.8):
+    """ Get dataset
+    path: the data folder, composed of a 'bg' folder and many others 'dog$index$' folders
+    train_split: the proportion of data per class to keep for training
+    """
 
     filenames_train = []
     labels_train = []
@@ -68,6 +24,7 @@ def get_dataset2(path, train_split):
     for root, _, files in os.walk(path):
         n = len(files)
         if n>0:
+            # In the beginning background dogs have all label 0
             if 'bg' in root:
                 label = 0
             else:
@@ -76,9 +33,22 @@ def get_dataset2(path, train_split):
             split = int(train_split * n)
 
             labels_train += [label for _ in range(split)]
-            filenames_train += files[:split]
+            filenames_train += [root + '/' + files[i] for i in range(split)]
 
             labels_valid += [label for _ in range(n - split)]
-            filenames_valid += files[split:]
+            filenames_valid += [root + '/' + files[i] for i in range(split, n)]
+    
+    # Rename the background dogs
+    count_train = max(labels_train) + 1
+    for i in range(len(labels_train)):
+        if labels_train[i] == 0:
+            labels_train[i] = count_train
+            count_train += 1
+
+    count_valid = max(labels_valid) + 1
+    for i in range(len(labels_valid)):
+        if labels_valid[i] == 0:
+            labels_valid[i] = count_valid
+            count_valid += 1
 
     return np.array(filenames_train), np.array(labels_train), np.array(filenames_valid), np.array(labels_valid)
