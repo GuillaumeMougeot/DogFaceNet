@@ -3,7 +3,6 @@ import numpy as np
 
 import tensorflow as tf
 
-
 def arcface_loss(embedding, labels, out_num, w_init=None, s=64., m=0.5):
     '''
     :param embedding: the input embedding vectors
