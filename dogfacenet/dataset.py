@@ -56,3 +56,29 @@ def get_dataset(PATH_BG, PATH_DOG1, TRAIN_SPLIT):
     # <-- there are len(filenames_dog1_valid) ones
     labels_valid = np.append(np.ones(len(filenames_dog1_valid)), np.arange(labels_train[-1]+1,labels_train[-1]+1+len(filenames_bg_valid)))
     return filenames_train, labels_train, filenames_valid, labels_valid
+
+def get_dataset2(path, train_split):
+    # Retrieve filenames
+
+    filenames_train = []
+    labels_train = []
+
+    filenames_valid = []
+    labels_valid = []
+    for root, _, files in os.walk(path):
+        n = len(files)
+        if n>0:
+            if 'bg' in root:
+                label = 0
+            else:
+                label = int(root[11:])
+            
+            split = int(train_split * n)
+
+            labels_train += [label for _ in range(split)]
+            filenames_train += files[:split]
+
+            labels_valid += [label for _ in range(n - split)]
+            filenames_valid += files[split:]
+
+    return np.array(filenames_train), np.array(labels_train), np.array(filenames_valid), np.array(labels_valid)
