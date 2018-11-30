@@ -1,5 +1,5 @@
 """
-DogFaceNet
+DogFaceNet with Keras
 The main DogFaceNet implementation
 
 Licensed under the MIT License (see LICENSE for details)
@@ -11,10 +11,6 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-import skimage as sk
-import matplotlib.pyplot as plt
-
-from tqdm import tqdm, trange
 
 import tensorflow as tf
 
@@ -44,57 +40,11 @@ EMB_SIZE = 128
 #  Data pre-processing
 ############################################################
 
-
-# Retrieve dataset from folders
-# filenames_train, labels_train, filenames_valid, labels_valid = get_dataset(
-#     PATH_BG, PATH_DOG1, TRAIN_SPLIT)
-
-# Defining dataset
-
-# Opens an image file, stores it into a tf.Tensor and reshapes it
-# def _parse_function(filename, label):
-#     image_string = tf.read_file(filename)
-#     image_decoded = tf.image.decode_jpeg(image_string, channels=3)
-#     image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
-#     return image_resized, label
-
-# def _parse_fn(filename):
-#     image_string = tf.read_file(filename)
-#     image_decoded = tf.image.decode_jpeg(image_string, channels=3)
-#     image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
-#     return image_resized
-
-
-# data_train = tf.data.Dataset.from_tensor_slices(
-#     (tf.constant(filenames_train),
-#     tf.constant(labels_train))
-#     )
-# data_train = data_train.map(_parse_function)
-# data_train = data_train.shuffle(1000).batch(BATCH_SIZE)
-
-# x_train = tf.constant(filenames_train)
-# images_train = tf.map_fn(_parse_fn, x_train, dtype=tf.float32)
-# y_train = tf.constant(labels_train)
-
-# images_train = tf.train.batch(images_train,BATCH_SIZE)
-# y_train = tf.train.batch(y_train, BATCH_SIZE)
-
-# data_valid = tf.data.Dataset.from_tensor_slices(
-#     (tf.constant(filenames_valid),
-#     tf.constant(labels_valid))
-#     )
-# data_valid = data_valid.map(_parse_function)
-
-# x_valid = tf.constant(filenames_valid)
-# images_valid = tf.map_fn(_parse_fn, x_valid, dtype=tf.float32)
-# y_valid = tf.constant(labels_valid)
-
 x_train, y_train, x_valid, y_valid = get_resized_dataset()
 
 ############################################################
 #  Models
 ############################################################
-
 
 class SimpleMLP(tf.keras.Model):
 
@@ -316,7 +266,7 @@ print(num_output)
 model = SimpleMLP(use_bn=True, use_dp=True, num_classes=num_output)
 
 model.compile(
-    optimizer=tf.train.AdamOptimizer(), 
+    optimizer=tf.train.GradientDescentOptimizer(0.01), 
     loss='categorical_crossentropy',
     metrics=['accuracy']
 )

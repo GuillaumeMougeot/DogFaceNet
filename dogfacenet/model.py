@@ -92,6 +92,58 @@ next_valid = it_valid.get_next()
 #  Models
 ############################################################
 
+class SimpleMLP(tf.keras.Model):
+
+    def __init__(self, use_bn=False, use_dp=False, num_classes=10):
+        super(SimpleMLP, self).__init__(name='mlp')
+        self.use_bn = use_bn
+        self.use_dp = use_dp
+        self.num_classes = num_classes
+
+        self.pool = tf.keras.layers.MaxPooling2D((7, 7))
+        self.flat = tf.keras.layers.Flatten()
+        self.dense1 = tf.keras.layers.Dense(32, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(num_classes, activation='softmax')
+        if self.use_dp:
+            self.dp = tf.keras.layers.Dropout(0.5)
+        if self.use_bn:
+            self.bn = tf.keras.layers.BatchNormalization(axis=-1)
+
+    def call(self, inputs):
+        x = self.pool(inputs)
+        x = self.flat(x)
+        x = self.dense1(x)
+        if self.use_dp:
+            x = self.dp(x)
+        if self.use_bn:
+            x = self.bn(x)
+        return self.dense2(x)
+
+class Dummy_softmax(tf.keras.Model):
+    def __init__(self, num_output):
+        super(Dummy_softmax, self).__init__(name='dummy')
+        self.conv1 = tf.keras.layers.Conv2D(10,(3, 3))
+        self.pool1 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv2 = tf.keras.layers.Conv2D(20,(3, 3))
+        self.pool2 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv3 = tf.keras.layers.Conv2D(40,(3, 3))
+        self.pool3 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv4 = tf.keras.layers.Conv2D(80,(3, 3))
+        self.avg_pool = tf.keras.layers.GlobalAveragePooling2D()
+        self.dense = tf.layers.Dense(num_output, activation='softmax')
+    
+    def call(self, input_tensor):
+        x = self.conv1(input_tensor)
+        x = self.pool1(x)
+        x = self.conv2(x)
+        x = self.pool2(x)
+        x = self.conv3(x)
+        x = self.pool3(x)
+        x = self.avg_pool(x)
+        x = tf.keras.layers.Flatten()(x)
+        x = self.dense(x)
+
+        return x
 
 class Dummy_embedding(tf.keras.Model):
     def __init__(self, emb_size):
@@ -221,7 +273,6 @@ class ResNet_embedding(tf.keras.Model):
         x = self.embedding(x)
 
         return tf.nn.l2_normalize(x)
-
 
 class NASNet_embedding(tf.keras.Model):
     def __init__(self):
