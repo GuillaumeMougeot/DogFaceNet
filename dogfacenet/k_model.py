@@ -10,6 +10,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import numpy as np
+import skimage as sk
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm, trange
@@ -17,7 +19,7 @@ from tqdm import tqdm, trange
 import tensorflow as tf
 
 from losses import arcface
-from dataset import get_dataset
+from dataset import get_resized_dataset
 
 # Paths of images folders
 PATH_BG = "../data/bg/"
@@ -37,7 +39,6 @@ TRAIN_SPLIT = 0.8
 EMB_SIZE = 128
 
 
-tf.enable_eager_execution()
 
 ############################################################
 #  Data pre-processing
@@ -47,48 +48,80 @@ tf.enable_eager_execution()
 # Retrieve dataset from folders
 # filenames_train, labels_train, filenames_valid, labels_valid = get_dataset(
 #     PATH_BG, PATH_DOG1, TRAIN_SPLIT)
-filenames_train, labels_train, filenames_valid, labels_valid, count_labels = get_dataset()
 
 # Defining dataset
 
 # Opens an image file, stores it into a tf.Tensor and reshapes it
-def _parse_function(filename, label):
-    image_string = tf.read_file(filename)
-    image_decoded = tf.image.decode_jpeg(image_string, channels=3)
-    image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
-    return image_resized, label
+# def _parse_function(filename, label):
+#     image_string = tf.read_file(filename)
+#     image_decoded = tf.image.decode_jpeg(image_string, channels=3)
+#     image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
+#     return image_resized, label
 
-def _parse_fn(filename):
-    image_string = tf.read_file(filename)
-    image_decoded = tf.image.decode_jpeg(image_string, channels=3)
-    image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
-    return image_resized
+# def _parse_fn(filename):
+#     image_string = tf.read_file(filename)
+#     image_decoded = tf.image.decode_jpeg(image_string, channels=3)
+#     image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
+#     return image_resized
 
 
-data_train = tf.data.Dataset.from_tensor_slices(
-    (tf.constant(filenames_train),
-    tf.constant(labels_train))
-    )
-data_train = data_train.map(_parse_function)
-data_train = data_train.shuffle(1000).batch(BATCH_SIZE)
+# data_train = tf.data.Dataset.from_tensor_slices(
+#     (tf.constant(filenames_train),
+#     tf.constant(labels_train))
+#     )
+# data_train = data_train.map(_parse_function)
+# data_train = data_train.shuffle(1000).batch(BATCH_SIZE)
 
-x_train = tf.constant(filenames_train)
-images_train = tf.map_fn(_parse_fn, x_train, dtype=tf.float32)
-y_train = tf.constant(labels_train)
+# x_train = tf.constant(filenames_train)
+# images_train = tf.map_fn(_parse_fn, x_train, dtype=tf.float32)
+# y_train = tf.constant(labels_train)
 
-data_valid = tf.data.Dataset.from_tensor_slices(
-    (tf.constant(filenames_valid),
-    tf.constant(labels_valid))
-    )
-data_valid = data_valid.map(_parse_function)
+# images_train = tf.train.batch(images_train,BATCH_SIZE)
+# y_train = tf.train.batch(y_train, BATCH_SIZE)
 
-x_valid = tf.constant(filenames_valid)
-images_valid = tf.map_fn(_parse_fn, x_valid, dtype=tf.float32)
-y_valid = tf.constant(labels_valid)
-print(images_train.shape)
+# data_valid = tf.data.Dataset.from_tensor_slices(
+#     (tf.constant(filenames_valid),
+#     tf.constant(labels_valid))
+#     )
+# data_valid = data_valid.map(_parse_function)
+
+# x_valid = tf.constant(filenames_valid)
+# images_valid = tf.map_fn(_parse_fn, x_valid, dtype=tf.float32)
+# y_valid = tf.constant(labels_valid)
+
+x_train, y_train, x_valid, y_valid = get_resized_dataset()
+
 ############################################################
 #  Models
 ############################################################
+
+
+class SimpleMLP(tf.keras.Model):
+
+    def __init__(self, use_bn=False, use_dp=False, num_classes=10):
+        super(SimpleMLP, self).__init__(name='mlp')
+        self.use_bn = use_bn
+        self.use_dp = use_dp
+        self.num_classes = num_classes
+
+        self.pool = tf.keras.layers.MaxPooling2D((7, 7))
+        self.flat = tf.keras.layers.Flatten()
+        self.dense1 = tf.keras.layers.Dense(32, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(num_classes, activation='softmax')
+        if self.use_dp:
+            self.dp = tf.keras.layers.Dropout(0.5)
+        if self.use_bn:
+            self.bn = tf.keras.layers.BatchNormalization(axis=-1)
+
+    def call(self, inputs):
+        x = self.pool(inputs)
+        x = self.flat(x)
+        x = self.dense1(x)
+        if self.use_dp:
+            x = self.dp(x)
+        if self.use_bn:
+            x = self.bn(x)
+        return self.dense2(x)
 
 
 class Dummy_embedding(tf.keras.Model):
@@ -115,6 +148,34 @@ class Dummy_embedding(tf.keras.Model):
         x = self.dense(x)
 
         return tf.nn.l2_normalize(x)
+
+
+class Dummy_softmax(tf.keras.Model):
+    def __init__(self, num_output):
+        super(Dummy_softmax, self).__init__(name='dummy')
+        self.conv1 = tf.keras.layers.Conv2D(10,(3, 3))
+        self.pool1 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv2 = tf.keras.layers.Conv2D(20,(3, 3))
+        self.pool2 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv3 = tf.keras.layers.Conv2D(40,(3, 3))
+        self.pool3 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv4 = tf.keras.layers.Conv2D(80,(3, 3))
+        self.avg_pool = tf.keras.layers.GlobalAveragePooling2D()
+        self.dense = tf.layers.Dense(num_output, activation='softmax')
+    
+    def call(self, input_tensor):
+        x = self.conv1(input_tensor)
+        x = self.pool1(x)
+        x = self.conv2(x)
+        x = self.pool2(x)
+        x = self.conv3(x)
+        x = self.pool3(x)
+        x = self.avg_pool(x)
+        x = tf.keras.layers.Flatten()(x)
+        x = self.dense(x)
+
+        return x
+
 
 class ResnetIdentityBlock(tf.keras.Model):
     def __init__(self, kernel_size, filters):
@@ -144,6 +205,7 @@ class ResnetIdentityBlock(tf.keras.Model):
 
         x += input_tensor
         return tf.nn.relu(x)
+
 
 class ResnetConvBlock(tf.keras.Model):
     def __init__(self, kernel_size, filters):
@@ -179,6 +241,7 @@ class ResnetConvBlock(tf.keras.Model):
 
         x += shortcut
         return tf.nn.relu(x)
+
 
 class ResNet_embedding(tf.keras.Model):
     def __init__(self, emb_size):
@@ -248,7 +311,9 @@ class NASNet_embedding(tf.keras.Model):
         return tf.keras.backend.l2_normalize(x)
 
 
-model = Dummy_embedding(EMB_SIZE)
+num_output = len(np.unique(y_train))
+print(num_output)
+model = SimpleMLP(use_bn=True, use_dp=True, num_classes=num_output)
 
 model.compile(
     optimizer=tf.train.AdamOptimizer(), 
@@ -257,17 +322,14 @@ model.compile(
 )
 
 callbacks=[
-    tf.keras.callbacks.EarlyStopping(patience=2, monitor='val_loss'),
     tf.keras.callbacks.TensorBoard(log_dir='../output/summary')
 ]
 
-steps_per_epoch=len(filenames_train)//BATCH_SIZE + 1
-
 model.fit(
-    data_train,
+    x_train,
+    y_train,
     batch_size=BATCH_SIZE,
     epochs=EPOCHS,
-    steps_per_epoch=steps_per_epoch,
     callbacks=callbacks,
-    validation_data=(images_valid, y_valid)
+    validation_data=(x_valid, y_valid)
 )
