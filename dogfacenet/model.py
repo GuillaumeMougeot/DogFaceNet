@@ -10,22 +10,18 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os
-import numpy as np
 import matplotlib.pyplot as plt
 
-from tqdm import tqdm
+from tqdm import tqdm, trange
 
 import tensorflow as tf
 
-import keras.models as KM
-import keras.applications as KA
-import keras.layers as KL
-
+from losses import arcface_loss
+from dataset import get_dataset
 
 # Paths of images folders
-PATH_BG = "..\\data\\bg\\"
-PATH_DOG1 = "..\\data\\dog1\\"
+PATH_BG = "../data/bg/"
+PATH_DOG1 = "../data/dog1/"
 
 # Images parameters for network feeding
 IM_H = 224
@@ -33,183 +29,332 @@ IM_W = 224
 IM_C = 3
 
 # Training parameters:
-EPOCHS = 1
+EPOCHS = 100
 BATCH_SIZE = 32
+TRAIN_SPLIT = 0.8
 
 # Embedding size
 EMB_SIZE = 128
 
 
 ############################################################
-#  Data analysis
+#  Data pre-processing
 ############################################################
 
 
-# Retrieve filenames
-filenames_bg = []
-for file in os.listdir(PATH_BG):
-        if ".jpg" in file:
-                filenames_bg += [file]
+# Retrieve dataset from folders
+# filenames_train, labels_train, filenames_valid, labels_valid = get_dataset(
+#     PATH_BG, PATH_DOG1, TRAIN_SPLIT)
+filenames_train, labels_train, filenames_valid, labels_valid, count_labels = get_dataset()
 
-filenames_dog1 = []
-for file in os.listdir(PATH_DOG1):
-        if ".jpg" in file:
-                filenames_dog1 += [file]
+# Filenames and labels place holder
+filenames_train_placeholder = tf.placeholder(
+    filenames_train.dtype, filenames_train.shape)
+labels_train_placeholder = tf.placeholder(tf.int64, labels_train.shape)
+
+filenames_valid_placeholder = tf.placeholder(
+    filenames_valid.dtype, filenames_valid.shape)
+labels_valid_placeholder = tf.placeholder(tf.int64, labels_valid.shape)
+
+# Defining dataset
 
 # Opens an image file, stores it into a tf.Tensor and reshapes it
 def _parse_function(filename, label):
-        image_string = tf.read_file(filename)
-        image_decoded = tf.image.decode_jpeg(image_string, channels=3)
-        image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
-        return image_resized, label
+    image_string = tf.read_file(filename)
+    image_decoded = tf.image.decode_jpeg(image_string, channels=3)
+    image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
+    return image_resized, label
 
-filenames = np.append(
-        [PATH_DOG1 + filenames_dog1[i] for i in range(len(filenames_dog1))],
-        [PATH_BG + filenames_bg[i] for i in range(len(filenames_bg))],
-        axis=0
-        )
-labels = np.append(np.ones(len(filenames_dog1)), np.arange(2,2+len(filenames_bg)))
 
-# Filenames and labels place holder
-filenames_placeholder = tf.placeholder(filenames.dtype, filenames.shape)
-labels_placeholder = tf.placeholder(labels.dtype, labels.shape)
+data_train = tf.data.Dataset.from_tensor_slices(
+    (filenames_train_placeholder, labels_train_placeholder))
+data_train = data_train.map(_parse_function)
 
-# Defining dataset
-dataset = tf.data.Dataset.from_tensor_slices((filenames_placeholder, (filenames_placeholder, labels_placeholder)))
-dataset = dataset.map(_parse_function)
+data_valid = tf.data.Dataset.from_tensor_slices((filenames_valid_placeholder,labels_valid_placeholder))
+data_valid = data_valid.map(_parse_function)
 
 # Batch the dataset for training
-data_train = dataset.repeat(EPOCHS).batch(BATCH_SIZE)
+data_train = data_train.shuffle(1000).batch(BATCH_SIZE)
 iterator = data_train.make_initializable_iterator()
 next_element = iterator.get_next()
 
-# Define the dataset for loss computation
-# embedding_placeholder = tf.placeholder(tf.float32, shape=(None, EMB_SIZE))
-# data_loss = tf.data.Dataset.from_tensor_slices((filenames_placeholder, (labels_placeholder, embedding_placeholder)))
+data_valid = data_valid.batch(BATCH_SIZE)
+it_valid = data_valid.make_initializable_iterator()
+next_valid = it_valid.get_next()
 
-# Defining the global prediction dictionary
-# data_dict = np.concatenate(
-#         (np.expand_dims(filenames,1), np.expand_dims(labels,1)),
-#         axis = 1
-#         )
+# Pre
 
-# dict_pred = {filename:(label, np.random.random_sample((EMB_SIZE,))) for filename, label in data_dict}
-
-
+# Define the global step and dropout rate
+# global_step = tf.Variable(name='global_step', initial_value=0, trainable=False)
+# inc_op = tf.assign_add(global_step, 1, name='increment_global_step')
+# dropout_rate = tf.placeholder(name='dropout_rate', dtype=tf.float32)
 
 
 ############################################################
-#  NASNet Graph
+#  Models
 ############################################################
 
 
-# Build the model using Keras pretrained model NASNetMobile,
-# a light and efficient network
-# def NASNet_embedding(
-#         input_tensor,
-#         input_shape=(224,224,3),
-#         include_top=False,
-#         training=True
-#         ):
+class Dummy_embedding(tf.keras.Model):
+    def __init__(self, emb_size):
+        super(Dummy_embedding, self).__init__(name='dummy')
+        self.conv1 = tf.keras.layers.Conv2D(10,(3, 3))
+        self.pool1 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv2 = tf.keras.layers.Conv2D(20,(3, 3))
+        self.pool2 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv3 = tf.keras.layers.Conv2D(40,(3, 3))
+        self.pool3 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv4 = tf.keras.layers.Conv2D(80,(3, 3))
+        self.avg_pool = tf.keras.layers.GlobalAveragePooling2D()
+        self.dense = tf.layers.Dense(emb_size)
+    
+    def __call__(self, input_tensor):
+        x = self.conv1(input_tensor)
+        x = self.pool1(x)
+        x = self.conv2(x)
+        x = self.pool2(x)
+        x = self.conv3(x)
+        x = self.pool3(x)
+        x = self.avg_pool(x)
+        x = self.dense(x)
 
-#         base_model = KA.NASNetMobile(
-#                 input_tensor=input_tensor,
-#                 input_shape=input_shape,
-#                 include_top=False
-#                 )
-#         x = KL.GlobalAveragePooling2D()(base_model.output)
-#         x = KL.Dense(1056, activation='relu')(x)
-#         if training:
-#                 x = KL.Dropout(0.5)(x)
-#         x = KL.Dense(EMB_SIZE)(x)
-#         x = tf.keras.backend.l2_normalize(x)
+        return tf.nn.l2_normalize(x)
 
-#         return x
+class ResnetIdentityBlock(tf.keras.Model):
+    def __init__(self, kernel_size, filters):
+        super(ResnetIdentityBlock, self).__init__(name='')
+        filters1, filters2, filters3 = filters
+
+        self.conv2a = tf.keras.layers.Conv2D(filters1, (1, 1))
+        self.bn2a = tf.keras.layers.BatchNormalization()
+
+        self.conv2b = tf.keras.layers.Conv2D(filters2, kernel_size, padding='same')
+        self.bn2b = tf.keras.layers.BatchNormalization()
+
+        self.conv2c = tf.keras.layers.Conv2D(filters3, (1, 1))
+        self.bn2c = tf.keras.layers.BatchNormalization()
+
+    def call(self, input_tensor, training=False):
+        x = self.conv2a(input_tensor)
+        x = self.bn2a(x, training=training)
+        x = tf.nn.relu(x)
+
+        x = self.conv2b(x)
+        x = self.bn2b(x, training=training)
+        x = tf.nn.relu(x)
+
+        x = self.conv2c(x)
+        x = self.bn2c(x, training=training)
+
+        x += input_tensor
+        return tf.nn.relu(x)
+
+class ResnetConvBlock(tf.keras.Model):
+    def __init__(self, kernel_size, filters):
+        super(ResnetConvBlock, self).__init__(name='')
+        filters1, filters2, filters3 = filters
+
+        self.conv2a = tf.keras.layers.Conv2D(filters1, (1, 1))
+        self.bn2a = tf.keras.layers.BatchNormalization()
+
+        self.conv2b = tf.keras.layers.Conv2D(filters2, kernel_size, padding='same')
+        self.bn2b = tf.keras.layers.BatchNormalization()
+
+        self.conv2c = tf.keras.layers.Conv2D(filters3, (1, 1))
+        self.bn2c = tf.keras.layers.BatchNormalization()
+
+        self.conv1 = tf.keras.layers.Conv2D(filters3, (1, 1))
+        self.bn1 = tf.keras.layers.BatchNormalization()
+
+    def call(self, input_tensor, training=False):
+        x = self.conv2a(input_tensor)
+        x = self.bn2a(x, training=training)
+        x = tf.nn.relu(x)
+
+        x = self.conv2b(x)
+        x = self.bn2b(x, training=training)
+        x = tf.nn.relu(x)
+
+        x = self.conv2c(x)
+        x = self.bn2c(x, training=training)
+
+        shortcut = self.conv1(input_tensor)
+        shortcut = self.bn1(shortcut, training=training)
+
+        x += shortcut
+        return tf.nn.relu(x)
+
+class ResNet_embedding(tf.keras.Model):
+    def __init__(self, emb_size):
+        super(ResNet_embedding, self).__init__(name='resnet')
+        self.conv1_pad = tf.keras.layers.ZeroPadding2D(padding=(3,3))
+        self.conv1 = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2))
+        self.bn_conv1 = tf.keras.layers.BatchNormalization()
+
+        self.pool1_pad = tf.keras.layers.ZeroPadding2D(padding=(1,1))
+        self.pool1 = tf.keras.layers.MaxPooling2D((3, 3), strides=(2, 2))
+
+        #filters = [[64,64,256], [128,128,512], [256,256,1024], [512,512,2048]]
+        #nrof_identity_block = [2,3,5,2]
+        filters = [[64,64,256]]
+        nrof_identity_block = [1]
+
+        self.in_layers = []
+        for i in range(len(filters)):
+            self.in_layers += [ResnetConvBlock(3, filters[i])]
+            for _ in range(nrof_identity_block[i]):
+                self.in_layers += [ResnetIdentityBlock(3, filters[i])]
+        
+        self.avg_pool = tf.keras.layers.GlobalAveragePooling2D()
+        self.embedding = tf.keras.layers.Dense(emb_size)
+
+    def __call__(self, input_tensor=None, training=False):
+        x = self.conv1_pad(input_tensor)
+        x = self.conv1(x)
+        x = self.bn_conv1(x, training=training)
+        x = tf.nn.relu(x)
+        x = self.pool1_pad(x)
+        x = self.pool1(x)
+
+        for in_layer in self.in_layers:
+            x = in_layer(x, training=training)
+        
+        x = self.avg_pool(x)
+        x = self.embedding(x)
+
+        return tf.nn.l2_normalize(x)
+
 
 class NASNet_embedding(tf.keras.Model):
-        def __init__(self):
-                super(NASNet_embedding, self).__init__(name='')
+    def __init__(self):
+        super(NASNet_embedding, self).__init__(name='')
 
-                self.pool = KL.GlobalAveragePooling2D()
-                self.dense_1 = KL.Dense(1056, activation='relu')
-                self.dropout = KL.Dropout(0.5)
-                self.dense_2 = KL.Dense(EMB_SIZE)
-        
-        def __call__(self, input_tensor, input_shape=(224,224,3), training=False):
-                base_model = KA.NASNetMobile(
-                        input_tensor=input_tensor,
-                        input_shape=input_shape,
-                        include_top=False
-                        )
-                x = self.pool(base_model.output)
-                x = self.dense_1(x)
-                if training:
-                        x = self.dropout(x)
-                x = self.dense_2(x)
+        self.pool = tf.keras.layers.GlobalAveragePooling2D()
+        self.dense_1 = tf.layers.Dense(1056, activation='relu')
+        self.dropout = tf.layers.Dropout(0.5)
+        self.dense_2 = tf.layers.Dense(EMB_SIZE)
 
-                return tf.keras.backend.l2_normalize(x)
+    def __call__(self, input_tensor, input_shape=(224, 224, 3), training=True, unfreeze=True):
+        # base_model = tf.keras.applications.NASNetMobile(
+        #         input_tensor=input_tensor,
+        #         input_shape=input_shape,
+        #         include_top=False
+        #         )
+
+        # for layer in base_model.layers: layer.trainable = False
+        # x = self.pool(base_model.output)
+        x = self.pool(input_tensor)
+        x = self.dense_1(x)
+        if training:
+            x = self.dropout(x)
+        x = self.dense_2(x)
+
+        return tf.keras.backend.l2_normalize(x)
 
 
-# Predict
-model = NASNet_embedding()
-y_pred = model(next_element[0])
+model = Dummy_embedding(EMB_SIZE)
 
-sess = tf.Session()
+# Training
+next_images, next_labels = next_element
+
+output = model(next_images)
+
+logit = arcface_loss(embedding=output, labels=next_labels,
+                     w_init=None, out_num=count_labels)
+loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+    logits=logit, labels=next_labels))
+
+# Validation
+next_images_valid, next_labels_valid = next_valid
+
+output_valid = model(next_images_valid)
+
+logit_valid = arcface_loss(embedding=output_valid, labels=next_labels_valid,
+                     w_init=None, out_num=count_labels)
+loss_valid = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+    logits=logit_valid, labels=next_labels_valid))
+
+pred_valid = tf.nn.softmax(logit_valid)
+acc_valid = tf.reduce_mean(tf.cast(tf.equal(tf.argmin(pred_valid, axis=1), next_labels_valid), dtype=tf.float32))
+
+# Optimizer
+lr = 0.01
+
+opt = tf.train.AdamOptimizer(learning_rate=lr)
+train = opt.minimize(loss)
+
+# Accuracy for validation and testing
+pred = tf.nn.softmax(logit)
+acc = tf.reduce_mean(tf.cast(tf.equal(tf.argmin(pred, axis=1), next_labels), dtype=tf.float32))
+
+
+############################################################
+#  Training session
+############################################################
+
 
 init = tf.global_variables_initializer()
-sess.run(iterator.initializer, feed_dict={filenames_placeholder:filenames, labels_placeholder:labels})
-sess.run(init)
-print(sess.run(y_pred))
 
-############################################################
-#  Loss Functions
-############################################################
+with tf.Session() as sess:
 
+    summary = tf.summary.FileWriter('../output/summary', sess.graph)
+    summaries = []
+    for var in tf.trainable_variables():
+        summaries.append(tf.summary.histogram(var.op.name, var))
+    summaries.append(tf.summary.scalar('inference_loss', loss))
+    summary_op = tf.summary.merge(summaries)
+    saver = tf.train.Saver(max_to_keep=100)
 
-def triplet_loss(anchor, positive, negative, alpha):
-        """Calculate the triplet loss according to the FaceNet paper
+    sess.run(init)
 
-        Args:
-        anchor: the embeddings for the anchor images.
-        positive: the embeddings for the positive images.
-        negative: the embeddings for the negative images.
+    # Training
+    nrof_batches = len(filenames_train)//BATCH_SIZE + 1
+    nrof_batches_valid = len(filenames_train)//BATCH_SIZE + 1
 
-        Returns:
-        the triplet loss according to the FaceNet paper as a float tensor.
-        """
-        with tf.variable_scope('triplet_loss'):
-                pos_dist = tf.reduce_sum(tf.square(tf.subtract(anchor, positive)), 1)
-                neg_dist = tf.reduce_sum(tf.square(tf.subtract(anchor, negative)), 1)
-
-                basic_loss = tf.add(tf.subtract(pos_dist,neg_dist), alpha)
-                loss = tf.reduce_mean(tf.maximum(basic_loss, 0.0), 0)
-
-        return loss
-
-
-def deviation_loss(dict_pred):
-        sum_class_loss = 0
-        classes_loss = 0
-
-        class_pred = {}
-
-        # Compute all center of mass
-        for _, (label, pred) in dict_pred:
-                if label in class_pred.keys():
-                        class_pred[label][0] += pred
-                        class_pred[label][1] += 1
-                else:
-                        class_pred[label] = (pred,1)
-        for label in class_pred:
-                class_pred[label][0] /= class_pred[label][1]
-
-        # Compute all classes center of mass
-        class_pred_values = np.array(class_pred.values())
-        classes_center = np.sum(class_pred_values)/len(class_pred)
-        classes_loss -= np.sum(np.log(np.linalg.norm(class_pred_values - classes_center)))
+    print("Start of training...")
+    for i in range(EPOCHS):
         
-        # Compute 
-        for _, (label, pred) in dict_pred:
-                sum_class_loss += np.linalg.norm(pred - class_pred[label])
+        feed_dict = {filenames_train_placeholder: filenames_train,
+                     labels_train_placeholder: labels_train}
 
-        return classes_loss + sum_class_loss
+        sess.run(iterator.initializer, feed_dict=feed_dict)
+
+        feed_dict_valid = {filenames_valid_placeholder: filenames_valid,
+                           labels_valid_placeholder: labels_valid}
+
+        sess.run(it_valid.initializer, feed_dict=feed_dict_valid)
+
+        # Training
+        for j in trange(nrof_batches):
+            try:
+                _, loss_value, summary_op_value, acc_value = sess.run((train, loss, summary_op, acc))
+                # summary.add_summary(summary_op_value, count)
+                tqdm.write("\n Batch: " + str(j)
+                    + ", Loss: " + str(loss_value)
+                    + ", Accuracy: " + str(acc_value)
+                    )
+
+            except tf.errors.OutOfRangeError:
+                break
+        
+        # Validation
+        print("Start validation...")
+        tot_acc = 0
+        for _ in trange(nrof_batches_valid):
+            try:
+                loss_valid_value, acc_valid_value = sess.run((loss_valid, acc_valid))
+                tot_acc += acc_valid_value
+                tqdm.write("Loss: " + str(loss_valid_value)
+                    + ", Accuracy: " + str(acc_valid_value)
+                    )
+
+            except tf.errors.OutOfRangeError:
+                break
+        print("End of validation. Total accuray: " + str(tot_acc/nrof_batches_valid))
+
+
+    print("End of training.")
+    print("Start evaluation...")
+    # Evaluation on the validation set:
+    ## One-shot training
+    #sess.run()
