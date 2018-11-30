@@ -1,3 +1,15 @@
+"""
+DogFaceNet
+Losses for dog identification and embeddings optimization:
+    -arcface_loss: defined in https://arxiv.org/abs/1801.07698
+                   implemented in https://github.com/auroua/InsightFace_TF
+    -triplet_loss: defined in https://arxiv.org/abs/1503.03832
+                   implemented in https://github.com/davidsandberg/facenet
+
+Licensed under the MIT License (see LICENSE for details)
+Written by Guillaume Mougeot
+"""
+
 import math
 import numpy as np
 
