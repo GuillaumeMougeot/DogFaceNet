@@ -16,7 +16,7 @@ from tqdm import tqdm, trange
 
 import tensorflow as tf
 
-from losses import arcface_loss
+from losses import arcface
 from dataset import get_dataset
 
 # Paths of images folders
@@ -37,6 +37,8 @@ TRAIN_SPLIT = 0.8
 EMB_SIZE = 128
 
 
+tf.enable_eager_execution()
+
 ############################################################
 #  Data pre-processing
 ############################################################
@@ -47,15 +49,6 @@ EMB_SIZE = 128
 #     PATH_BG, PATH_DOG1, TRAIN_SPLIT)
 filenames_train, labels_train, filenames_valid, labels_valid, count_labels = get_dataset()
 
-# Filenames and labels place holder
-filenames_train_placeholder = tf.placeholder(
-    filenames_train.dtype, filenames_train.shape)
-labels_train_placeholder = tf.placeholder(tf.int64, labels_train.shape)
-
-filenames_valid_placeholder = tf.placeholder(
-    filenames_valid.dtype, filenames_valid.shape)
-labels_valid_placeholder = tf.placeholder(tf.int64, labels_valid.shape)
-
 # Defining dataset
 
 # Opens an image file, stores it into a tf.Tensor and reshapes it
@@ -65,29 +58,34 @@ def _parse_function(filename, label):
     image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
     return image_resized, label
 
+def _parse_fn(filename):
+    image_string = tf.read_file(filename)
+    image_decoded = tf.image.decode_jpeg(image_string, channels=3)
+    image_resized = tf.image.resize_images(image_decoded, [IM_H, IM_W])
+    return image_resized
+
 
 data_train = tf.data.Dataset.from_tensor_slices(
-    (filenames_train_placeholder, labels_train_placeholder))
+    (tf.constant(filenames_train),
+    tf.constant(labels_train))
+    )
 data_train = data_train.map(_parse_function)
+data_train = data_train.shuffle(1000).batch(BATCH_SIZE)
 
-data_valid = tf.data.Dataset.from_tensor_slices((filenames_valid_placeholder,labels_valid_placeholder))
+x_train = tf.constant(filenames_train)
+images_train = tf.map_fn(_parse_fn, x_train, dtype=tf.float32)
+y_train = tf.constant(labels_train)
+
+data_valid = tf.data.Dataset.from_tensor_slices(
+    (tf.constant(filenames_valid),
+    tf.constant(labels_valid))
+    )
 data_valid = data_valid.map(_parse_function)
 
-# Batch the dataset for training
-data_train = data_train.shuffle(1000).batch(BATCH_SIZE)
-iterator = data_train.make_initializable_iterator()
-next_element = iterator.get_next()
-
-data_valid = data_valid.batch(BATCH_SIZE)
-it_valid = data_valid.make_initializable_iterator()
-next_valid = it_valid.get_next()
-
-# Define the global step and dropout rate
-# global_step = tf.Variable(name='global_step', initial_value=0, trainable=False)
-# inc_op = tf.assign_add(global_step, 1, name='increment_global_step')
-# dropout_rate = tf.placeholder(name='dropout_rate', dtype=tf.float32)
-
-
+x_valid = tf.constant(filenames_valid)
+images_valid = tf.map_fn(_parse_fn, x_valid, dtype=tf.float32)
+y_valid = tf.constant(labels_valid)
+print(images_train.shape)
 ############################################################
 #  Models
 ############################################################
@@ -106,7 +104,7 @@ class Dummy_embedding(tf.keras.Model):
         self.avg_pool = tf.keras.layers.GlobalAveragePooling2D()
         self.dense = tf.layers.Dense(emb_size)
     
-    def __call__(self, input_tensor):
+    def call(self, input_tensor):
         x = self.conv1(input_tensor)
         x = self.pool1(x)
         x = self.conv2(x)
@@ -252,109 +250,24 @@ class NASNet_embedding(tf.keras.Model):
 
 model = Dummy_embedding(EMB_SIZE)
 
-# Training
-next_images, next_labels = next_element
+model.compile(
+    optimizer=tf.train.AdamOptimizer(), 
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
 
-output = model(next_images)
+callbacks=[
+    tf.keras.callbacks.EarlyStopping(patience=2, monitor='val_loss'),
+    tf.keras.callbacks.TensorBoard(log_dir='../output/summary')
+]
 
-logit = arcface_loss(embedding=output, labels=next_labels,
-                     w_init=None, out_num=count_labels)
-loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-    logits=logit, labels=next_labels))
+steps_per_epoch=len(filenames_train)//BATCH_SIZE + 1
 
-# Validation
-next_images_valid, next_labels_valid = next_valid
-
-output_valid = model(next_images_valid)
-
-logit_valid = arcface_loss(embedding=output_valid, labels=next_labels_valid,
-                     w_init=None, out_num=count_labels)
-loss_valid = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-    logits=logit_valid, labels=next_labels_valid))
-
-pred_valid = tf.nn.softmax(logit_valid)
-acc_valid = tf.reduce_mean(tf.cast(tf.equal(tf.argmin(pred_valid, axis=1), next_labels_valid), dtype=tf.float32))
-
-# Optimizer
-lr = 0.01
-
-opt = tf.train.AdamOptimizer(learning_rate=lr)
-train = opt.minimize(loss)
-
-# Accuracy for validation and testing
-pred = tf.nn.softmax(logit)
-acc = tf.reduce_mean(tf.cast(tf.equal(tf.argmin(pred, axis=1), next_labels), dtype=tf.float32))
-
-
-############################################################
-#  Training session
-############################################################
-
-
-init = tf.global_variables_initializer()
-
-with tf.Session() as sess:
-
-    summary = tf.summary.FileWriter('../output/summary', sess.graph)
-    summaries = []
-    for var in tf.trainable_variables():
-        summaries.append(tf.summary.histogram(var.op.name, var))
-    summaries.append(tf.summary.scalar('inference_loss', loss))
-    summary_op = tf.summary.merge(summaries)
-    saver = tf.train.Saver(max_to_keep=100)
-
-    sess.run(init)
-
-    # Training
-    nrof_batches = len(filenames_train)//BATCH_SIZE + 1
-    nrof_batches_valid = len(filenames_train)//BATCH_SIZE + 1
-
-    print("Start of training...")
-    for i in range(EPOCHS):
-        
-        feed_dict = {filenames_train_placeholder: filenames_train,
-                     labels_train_placeholder: labels_train}
-
-        sess.run(iterator.initializer, feed_dict=feed_dict)
-
-        feed_dict_valid = {filenames_valid_placeholder: filenames_valid,
-                           labels_valid_placeholder: labels_valid}
-
-        sess.run(it_valid.initializer, feed_dict=feed_dict_valid)
-
-        # Training
-        for j in trange(nrof_batches):
-            try:
-                _, loss_value, summary_op_value, acc_value = sess.run((train, loss, summary_op, acc))
-                # summary.add_summary(summary_op_value, count)
-                tqdm.write("\n Batch: " + str(j)
-                    + ", Loss: " + str(loss_value)
-                    + ", Accuracy: " + str(acc_value)
-                    )
-
-            except tf.errors.OutOfRangeError:
-                break
-        
-        # Validation
-        print("Start validation...")
-        tot_acc = 0
-        for _ in trange(nrof_batches_valid):
-            try:
-                loss_valid_value, acc_valid_value = sess.run((loss_valid, acc_valid))
-                tot_acc += acc_valid_value
-                tqdm.write("Loss: " + str(loss_valid_value)
-                    + ", Accuracy: " + str(acc_valid_value)
-                    )
-
-            except tf.errors.OutOfRangeError:
-                break
-        print("End of validation. Total accuray: " + str(tot_acc/nrof_batches_valid))
-
-
-    print("End of training.")
-    print("Start evaluation...")
-    # Evaluation on the validation set:
-    ## One-shot training
-    #sess.run()
-
-
+model.fit(
+    data_train,
+    batch_size=BATCH_SIZE,
+    epochs=EPOCHS,
+    steps_per_epoch=steps_per_epoch,
+    callbacks=callbacks,
+    validation_data=(images_valid, y_valid)
+)
