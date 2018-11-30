@@ -66,8 +66,7 @@ def _parse_function(filename, label):
     return image_resized, label
 
 
-data_train = tf.data.Dataset.from_tensor_slices(
-    (filenames_train_placeholder, labels_train_placeholder))
+data_train = tf.data.Dataset.from_tensor_slices((filenames_train_placeholder, labels_train_placeholder))
 data_train = data_train.map(_parse_function)
 
 data_valid = tf.data.Dataset.from_tensor_slices((filenames_valid_placeholder,labels_valid_placeholder))
@@ -75,12 +74,19 @@ data_valid = data_valid.map(_parse_function)
 
 # Batch the dataset for training
 data_train = data_train.shuffle(1000).batch(BATCH_SIZE)
-iterator = data_train.make_initializable_iterator()
-next_element = iterator.get_next()
+# iterator = data_train.make_initializable_iterator()
+# next_element = iterator.get_next()
 
 data_valid = data_valid.batch(BATCH_SIZE)
-it_valid = data_valid.make_initializable_iterator()
-next_valid = it_valid.get_next()
+# it_valid = data_valid.make_initializable_iterator()
+# next_valid = it_valid.get_next()
+
+# Reinitializable iterator
+iterator = tf.data.Iterator.from_structure(data_train.output_types, data_train.output_shapes)
+next_element = iterator.get_next()
+
+train_init_op = iterator.make_initializer(data_train)
+valid_init_op = iterator.make_initializer(data_valid)
 
 # Define the global step and dropout rate
 # global_step = tf.Variable(name='global_step', initial_value=0, trainable=False)
@@ -313,19 +319,6 @@ logit = arcface_loss(embedding=output, labels=next_labels,
 loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
     logits=logit, labels=next_labels))
 
-# Validation
-next_images_valid, next_labels_valid = next_valid
-
-output_valid = model(next_images_valid)
-
-logit_valid = arcface_loss(embedding=output_valid, labels=next_labels_valid,
-                     w_init=None, out_num=count_labels)
-loss_valid = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-    logits=logit_valid, labels=next_labels_valid))
-
-pred_valid = tf.nn.softmax(logit_valid)
-acc_valid = tf.reduce_mean(tf.cast(tf.equal(tf.argmin(pred_valid, axis=1), next_labels_valid), dtype=tf.float32))
-
 # Optimizer
 lr = 0.01
 
@@ -346,37 +339,32 @@ init = tf.global_variables_initializer()
 
 with tf.Session() as sess:
 
-    summary = tf.summary.FileWriter('../output/summary', sess.graph)
-    summaries = []
-    for var in tf.trainable_variables():
-        summaries.append(tf.summary.histogram(var.op.name, var))
-    summaries.append(tf.summary.scalar('inference_loss', loss))
-    summary_op = tf.summary.merge(summaries)
-    saver = tf.train.Saver(max_to_keep=100)
+    # summary = tf.summary.FileWriter('../output/summary', sess.graph)
+    # summaries = []
+    # for var in tf.trainable_variables():
+    #     summaries.append(tf.summary.histogram(var.op.name, var))
+    # summaries.append(tf.summary.scalar('inference_loss', loss))
+    # summary_op = tf.summary.merge(summaries)
+    # saver = tf.train.Saver(max_to_keep=100)
 
     sess.run(init)
 
     # Training
     nrof_batches = len(filenames_train)//BATCH_SIZE + 1
-    nrof_batches_valid = len(filenames_train)//BATCH_SIZE + 1
+    nrof_batches_valid = len(filenames_valid)//BATCH_SIZE + 1
 
     print("Start of training...")
     for i in range(EPOCHS):
-        
-        feed_dict = {filenames_train_placeholder: filenames_train,
-                     labels_train_placeholder: labels_train}
-
-        sess.run(iterator.initializer, feed_dict=feed_dict)
-
-        feed_dict_valid = {filenames_valid_placeholder: filenames_valid,
-                           labels_valid_placeholder: labels_valid}
-
-        sess.run(it_valid.initializer, feed_dict=feed_dict_valid)
 
         # Training
+        feed_dict_train = {filenames_train_placeholder: filenames_train,
+                     labels_train_placeholder: labels_train}
+
+        sess.run(train_init_op, feed_dict=feed_dict_train)
+
         for j in trange(nrof_batches):
             try:
-                _, loss_value, summary_op_value, acc_value = sess.run((train, loss, summary_op, acc))
+                _, loss_value, acc_value = sess.run((train, loss, acc))
                 # summary.add_summary(summary_op_value, count)
                 tqdm.write("\n Batch: " + str(j)
                     + ", Loss: " + str(loss_value)
@@ -387,11 +375,15 @@ with tf.Session() as sess:
                 break
         
         # Validation
+        feed_dict_valid = {filenames_valid_placeholder: filenames_valid,
+                           labels_valid_placeholder: labels_valid}
+
+        sess.run(valid_init_op, feed_dict=feed_dict_valid)
         print("Start validation...")
         tot_acc = 0
         for _ in trange(nrof_batches_valid):
             try:
-                loss_valid_value, acc_valid_value = sess.run((loss_valid, acc_valid))
+                loss_valid_value, acc_valid_value = sess.run((loss, acc))
                 tot_acc += acc_valid_value
                 tqdm.write("Loss: " + str(loss_valid_value)
                     + ", Accuracy: " + str(acc_valid_value)
