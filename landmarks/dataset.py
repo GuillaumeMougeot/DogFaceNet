@@ -30,3 +30,5 @@ def get_landmarks_dataset(path='../data/landmarks/', split=0.8):
     filenames = df.loc[:,'filename']
     region_id = df.loc[:,'region_id']
     dictionary = [literal_eval(df.loc[:,'region_shape_attributes'][i]) for i in range(len(index))]
+
+    images = np.empty(())
