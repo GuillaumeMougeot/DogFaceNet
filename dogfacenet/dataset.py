@@ -12,6 +12,11 @@ import skimage as sk
 from tqdm import tqdm
 
 
+############################################################
+#  Data pre-processing for dataset retrieving
+############################################################
+
+
 def get_dataset(path='../data/full/', train_split=0.8):
     """ Get dataset
     path: the data folder, composed of a 'bg' folder and many others 'dog$index$' folders
@@ -119,8 +124,19 @@ def get_resized_dataset(path='../data/resized/', image_shape=[224,224,3]):
 
     return x_train, y_train, x_valid, y_valid
 
-if __name__=='__main__':
+
+def prepare_dataset():
     filenames_train, labels_train, filenames_valid, labels_valid,_ = get_dataset()
     x_train, y_train, x_valid, y_valid = resize_data(filenames_train, labels_train, filenames_valid, labels_valid)
     save_resized_data(x_train, y_train, x_valid, y_valid)
+
+
+############################################################
+#  Main
+############################################################
+
+
+if __name__=='__main__':
+    prepare_dataset()
+
 
