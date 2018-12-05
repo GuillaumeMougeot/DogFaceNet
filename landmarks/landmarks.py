@@ -15,7 +15,7 @@ from models import ConvNet
 
 PATH = '../data/landmarks/'
 SPLIT = 0.8
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 EPOCHS = 100
 
 
