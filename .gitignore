@@ -3,6 +3,7 @@ tmp/
 .vscode/
 *.h5
 output/
+weights/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
