@@ -85,7 +85,7 @@ model.compile(optimizer=tf.train.AdamOptimizer(0.01),
 
 callbacks = [
     tf.keras.callbacks.ModelCheckpoint(
-        '../weights/weights.{epoch:02d}-{val_loss:.2f}.hdf5',
+        '../weights/landmarks/weights.{epoch:02d}-{val_loss:.2f}.hdf5',
         save_best_only=True,
         save_weights_only=True
         ),
