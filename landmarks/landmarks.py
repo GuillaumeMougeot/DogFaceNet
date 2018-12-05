@@ -17,6 +17,7 @@ PATH = '../data/landmarks/'
 SPLIT = 0.8
 BATCH_SIZE = 16
 EPOCHS = 100
+STEPS_PER_EPOCH = 40
 
 
 ############################################################
@@ -95,7 +96,7 @@ callbacks = [
 model.fit(
     data_train,
     epochs=EPOCHS,
-    steps_per_epoch=30,
+    steps_per_epoch=STEPS_PER_EPOCH,
     validation_data=data_valid,
     validation_steps=3,
     callbacks=callbacks
