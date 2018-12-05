@@ -59,11 +59,19 @@ data_valid = data_valid.map(_parse).batch(BATCH_SIZE).repeat()
 #  Model definition
 ############################################################
 
-layers = [20, 30, 40, 80, 120, 200]
+# layers = [20, 30, 40, 80, 120, 200]
 
-model = ConvNet(layers, 14, (500,500,3,))
+# model = ConvNet(layers, 14, (500,500,3,))
+
+base_model = tf.keras.applications.ResNet50(include_top=False, pooling='avg')
+x = tf.keras.layers.Dense(1024, activation='relu')(base_model.output)
+out = tf.keras.layers.Dense(14, kernel_regularizer=tf.keras.regularizers.l2(l=0.01))(x)
+
+model = tf.keras.Model(inputs=base_model.input, outputs=out)
 
 print(model.summary())
+
+for layer in base_model.layers: layer.trainable = False
 
 model.compile(optimizer=tf.train.AdamOptimizer(0.01),
               loss='mse',       # mean squared error
