@@ -25,10 +25,10 @@ STEPS_PER_EPOCH = 40
 ############################################################
 
 
-filenames = os.listdir(PATH + 'resized/')
-filenames = np.array([PATH + 'resized/' + file for file in filenames])
+filenames = os.listdir(PATH + 're_resized/')
+filenames = np.array([PATH + 're_resized/' + file for file in filenames])
 
-labels = np.load(PATH + 'resized_labels.npy')
+labels = np.load(PATH + 're_resized_labels.npy')
 
 
 assert len(filenames)==len(labels)
