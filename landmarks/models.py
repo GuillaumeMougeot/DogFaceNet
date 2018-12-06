@@ -27,6 +27,56 @@ def ConvNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
     
     return model
 
+def ConvBnNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
+    inputs = tf.keras.Input(shape=input_shape)
+
+    x = tf.keras.layers.Conv2D(layers[0], (5,5), padding='same')(inputs)
+    for i in range(1,len(layers)):
+        x = tf.keras.layers.Conv2D(layers[i], (3,3), strides=(2,2), activation='relu')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Flatten()(x)
+    x = tf.keras.layers.Dense(64, activation='relu')(x)
+    outputs = tf.keras.layers.Dense(num_output)(x)
+
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+
+    if weight!=None:
+        model.load_weights(weight)
+    
+    return model
+
+
+def ResNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
+
+    def ResBlock(input_tensor, filters):
+        x = tf.keras.layers.Conv2D(filters, (3,3), activation='relu', padding='same')(input_tensor)
+        x = tf.keras.layers.BatchNormalization()(x)
+        return tf.keras.layers.Concatenate()([input_tensor, x])
+
+    
+    inputs = tf.keras.Input(shape=input_shape)
+
+    x = tf.keras.layers.Conv2D(layers[0], (5,5), padding='same')(inputs)
+    
+    for i in range(1,len(layers)):
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = ResBlock(x, layers[i])
+        x = ResBlock(x, layers[i])
+    
+    x = tf.keras.layers.GlobalAveragePooling2D()(x)
+    x = tf.keras.layers.Flatten()(x)
+    outputs = tf.keras.layers.Dense(num_output)(x)
+
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+
+    if weight!=None:
+        model.load_weights(weight)
+    
+    return model
+    
+    
+
+
 
 ############################################################
 #  Archives

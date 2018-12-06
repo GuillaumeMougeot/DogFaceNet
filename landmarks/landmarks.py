@@ -10,7 +10,7 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from models import ConvNet
+import models
 
 
 PATH = '../data/landmarks/'
@@ -60,21 +60,23 @@ data_valid = data_valid.map(_parse).batch(BATCH_SIZE).repeat()
 #  Model definition
 ############################################################
 
-# layers = [20, 30, 40, 80, 120, 200]
 
-# model = ConvNet(layers, 14, (500,500,3,))
+# base_model = tf.keras.applications.ResNet50(include_top=False, pooling='avg')
+# x = tf.keras.layers.Dense(1024, activation='relu')(base_model.output)
+# x = tf.keras.layers.Dropout(0.25)(x)
+# out = tf.keras.layers.Dense(14, kernel_regularizer=tf.keras.regularizers.l2(l=0.01))(x)
 
-base_model = tf.keras.applications.ResNet50(include_top=False, pooling='avg')
-x = tf.keras.layers.Dense(1024, activation='relu')(base_model.output)
-out = tf.keras.layers.Dense(14, kernel_regularizer=tf.keras.regularizers.l2(l=0.01))(x)
+# model = tf.keras.Model(inputs=base_model.input, outputs=out)
+#for layer in base_model.layers: layer.trainable = False
 
-model = tf.keras.Model(inputs=base_model.input, outputs=out)
+
+layers = [10, 20, 40, 80, 160]
+model = models.ResNet(layers, 14, (100,100,3,))
 
 print(model.summary())
 
-for layer in base_model.layers: layer.trainable = False
 
-model.compile(optimizer=tf.train.AdamOptimizer(0.01),
+model.compile(optimizer=tf.keras.optimizers.Adam(0.01, decay=1e-5),
               loss='mse',       # mean squared error
               metrics=['mae']) 
 

@@ -99,7 +99,7 @@ def get_resized_dataset(path='../data/landmarks/', split=0.8, shape=(500,500,3))
 
 
 if __name__=="__main__":
-    resize_dataset()
+    resize_dataset(output_shape=(100,100,3))
     #train_images, train_labels, valid_images, valid_labels = get_resized_dataset()
 
     
