@@ -86,7 +86,7 @@ def re_resize_dataset(path='../data/landmarks/', output_shape=(100,100,3)):
             output_labels[i][j] = np.array([labels[i][j][0] * a, labels[i][j][1] * b])
 
         image_resized = sk.transform.resize(image, output_shape, mode='reflect', anti_aliasing=False)
-        sk.io.imsave(path + 'test/' + filenames[i], image_resized)
+        sk.io.imsave(path + 're_resized/' + filenames[i], image_resized)
     np.save(path + 're_resized_labels.npy', output_labels)
 
 
