@@ -25,7 +25,7 @@ STEPS_PER_EPOCH = 40
 ############################################################
 
 
-filenames = os.listdir(PATH + 're_resized/')
+filenames = np.array([str(filename) for filename in os.listdir(PATH + 're_resized/')],dtype=str)
 filenames = np.array([PATH + 're_resized/' + file for file in filenames])
 
 labels = np.load(PATH + 're_resized_labels.npy')
