@@ -49,7 +49,7 @@ def resize_dataset(path='../data/landmarks/', output_shape=(500,500,3)):
         if len(image.shape)>1:
             image_resized = sk.transform.resize(image, output_shape, mode='reflect', anti_aliasing=False)
 
-            sk.io.imsave(path + 'resized/' + filenames[i], image_resized)
+            sk.io.imsave(path + 'resized/' + str(i//7) + '.jpg', image_resized)
 
             x, y, _ = image.shape
             a = h/x
@@ -86,9 +86,16 @@ def re_resize_dataset(path='../data/landmarks/', output_shape=(100,100,3)):
             output_labels[i][j] = np.array([labels[i][j][0] * a, labels[i][j][1] * b])
 
         image_resized = sk.transform.resize(image, output_shape, mode='reflect', anti_aliasing=False)
-        sk.io.imsave(path + 're_resized/' + filenames[i], image_resized)
+        sk.io.imsave(path + 're_resized/' + str(i) + '.jpg', image_resized)
     np.save(path + 're_resized_labels.npy', output_labels)
 
+
+def rename_dataset(path='../data/landmarks/re_resized/'):
+    filenames = os.listdir(path)
+    for i in tqdm(range(len(filenames))):
+        image = sk.io.imread(path+filenames[i])
+        os.remove(path+filenames[i])
+        sk.io.imsave(path+str(i)+'.jpg',image)
 
 # Too slow...
 def get_resized_dataset(path='../data/landmarks/', split=0.8, shape=(500,500,3)):
@@ -120,8 +127,9 @@ def get_resized_dataset(path='../data/landmarks/', split=0.8, shape=(500,500,3))
 
 
 if __name__=="__main__":
-    #resize_dataset(output_shape=(100,100,3))
-    re_resize_dataset(output_shape=(100,100,3))
+    resize_dataset(output_shape=(100,100,3))
+    #re_resize_dataset(output_shape=(100,100,3))
     #train_images, train_labels, valid_images, valid_labels = get_resized_dataset()
+    #rename_dataset()
 
     
