@@ -27,6 +27,10 @@ STEPS_PER_EPOCH = 40
 
 filenames = os.listdir(PATH + 'resized/')
 
+filename_int = np.sort([int(s[:-4]) for s in filenames])
+
+filenames = np.array([str(i) + '.jpg' for i in filename_int])
+
 labels = np.load(PATH + 'resized_labels.npy')
 
 
