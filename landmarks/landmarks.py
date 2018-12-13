@@ -15,7 +15,7 @@ import models
 
 PATH = '../data/landmarks/'
 SPLIT = 0.8
-BATCH_SIZE = 16
+BATCH_SIZE = 32
 EPOCHS = 100
 STEPS_PER_EPOCH = 40
 
@@ -32,7 +32,7 @@ filename_int = np.sort([int(s[:-4]) for s in filenames])
 filenames = np.array([resized_path + str(i) + '.jpg' for i in filename_int])
 
 labels = np.load(PATH + 'resized_labels.npy')
-
+print(labels)
 
 assert len(filenames)==len(labels)
 
@@ -73,13 +73,13 @@ data_valid = data_valid.map(_parse).batch(BATCH_SIZE).repeat()
 #for layer in base_model.layers: layer.trainable = False
 
 
-layers = [10, 20, 40, 80, 160]
+layers = [16, 48, 144]
 model = models.ResNet(layers, 14, (100,100,3,))
 
 print(model.summary())
 
 
-model.compile(optimizer=tf.keras.optimizers.Adam(0.01, decay=1e-5),
+model.compile(optimizer=tf.train.AdamOptimizer(),
               loss='mse',       # mean squared error
               metrics=['mae']) 
 

@@ -126,10 +126,114 @@ def get_resized_dataset(path='../data/landmarks/', split=0.8, shape=(500,500,3))
     return images[:train_split], labels[:train_split], images[train_split:], labels[train_split:]
 
 
+############################################################
+#  Data pre-processing for MTCNN
+############################################################
+
+def solve(dictionary, n):
+    """
+    Arguments:
+     -dictionary: the dictionary containing the images
+     -n: image index (times 7 as there are 7 labels per images in the dataset)
+    Return:
+    [[s*cos(theta) -s*sin(theta) tx]
+     [s*sin(theta) s*cos(theta)  ty]
+     [0            0             1 ]]
+    """
+
+    # Here we are in matplotlib coordinate system
+    x_6 = dictionary[5+n]['cx']
+    y_6 = dictionary[5+n]['cy']
+    x_7 = dictionary[6+n]['cx']
+    y_7 = dictionary[6+n]['cy']
+
+    x_2 = dictionary[1+n]['cx']
+    y_2 = dictionary[1+n]['cy']
+    x_4 = dictionary[3+n]['cx']
+    y_4 = dictionary[3+n]['cy']
+
+    x_1 = dictionary[0+n]['cx']
+    y_1 = dictionary[0+n]['cy']
+    x_5 = dictionary[4+n]['cx']
+    y_5 = dictionary[4+n]['cy']
+
+    A = np.array([[x_6, -y_6, 1, 0], [y_6, x_6, 0, 1], [x_7, -y_7, 1, 0], [y_7, x_7, 0, 1]])
+    b = np.array([1/2.0, 1, 1/2.0, 0])
+
+#     sol = np.linalg.inv(A.T.dot(A)).dot(A.T.dot(b))
+
+    # Add constraints: the eyes middle point and nose middle points should be in the middle of the picture
+    A_c = np.append(A, np.array([[x_1 + x_5, -(y_1 + y_5), 2, 0], [x_2 + x_4, -(y_2 + y_4), 2, 0]]), axis=0)
+    b_c = np.append(b, [1, 1])
+
+    # Add constraints: the eyes y axis should be equal (eyes are horizontal)
+    # y_1 = y_5 => y_1 - y_5 = 0
+    A_c = np.append(A_c, np.array([[y_1 - y_5, x_1 - x_5,0,0],[y_2 - y_4, x_2 - x_4,0,0]]), axis=0)
+    b_c = np.append(b_c, [0,0])
+
+    sol = np.linalg.inv(A_c.T.dot(A_c)).dot(A_c.T.dot(b_c))
+    
+    return np.array([[sol[0], -sol[1], sol[2]],[sol[1], sol[0], sol[3]], [0,0,1]])
+
+
+
+def compute_masks(path_cvs='../data/landmarks/', path_in='../data/landmarks/images/', path_out='../data/landmarks/masks/'):
+    """
+    Compute masks
+    """
+
+    for file in os.listdir(path_cvs):
+        if '.csv' in file:
+            df = pd.read_csv(path_cvs + file)
+            df = df[df['region_count']==7]
+
+    index = df.index
+    # Contains the position of the different labels
+    # dictionary[7*i + 1]['cx'] gives the x index of label 2 in image 1
+    dictionary = [literal_eval(df.loc[:,'region_shape_attributes'][i]) for i in range(len(index))]
+
+    filenames = df.loc[:,'filename']
+
+    for i in tqdm(range(len(filenames)//7)):
+        n = i*7
+        image = sk.io.imread(path_in + filenames[n])
+        if len(image.shape)>2:
+            M = solve(dictionary, n)
+            P = np.linalg.inv(M)
+            A = P.dot([0,0,1])
+            B = P.dot([1,0,1])
+            D = P.dot([0,1,1])
+
+            AB = np.array([B[0]-A[0],B[1]-A[1]])
+            AD = np.array([D[0]-A[0],D[1]-A[1]])
+
+            n_ab = np.linalg.norm(AB)**2
+            n_ad = np.linalg.norm(AD)**2
+
+            h , w = image.shape[0:2]
+            mask = np.zeros((h,w), dtype=float)
+
+            for i in range(h):
+                for j in range(w):
+                    AX = np.array([j-A[0], i-A[1]])
+                    dot1 = AX.T.dot(AB)/n_ab
+                    dot2 = AX.T.dot(AD)/n_ad
+                    if dot1 >= 0 and dot1 <= 1 and dot2 >= 0 and dot2 <= 1:
+                        mask[i][j] = 1.0
+            
+            sk.io.imsave(path_out + filenames[n], mask)
+
+
+
+
+
+
 if __name__=="__main__":
-    resize_dataset(output_shape=(100,100,3))
+    #resize_dataset(output_shape=(100,100,3))
     #re_resize_dataset(output_shape=(100,100,3))
     #train_images, train_labels, valid_images, valid_labels = get_resized_dataset()
     #rename_dataset()
+
+    compute_masks()
 
     

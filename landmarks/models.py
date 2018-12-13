@@ -49,15 +49,20 @@ def ConvBnNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
 def ResNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
 
     def ResBlock(input_tensor, filters):
-        x = tf.keras.layers.Conv2D(filters, (3,3), activation='relu', padding='same')(input_tensor)
+        x = tf.keras.layers.Conv2D(filters, (3,3), padding='same')(input_tensor)
+        x = tf.keras.layers.Conv2D(filters, (3,3), strides=(2,2), activation='relu', padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
-        return tf.keras.layers.Concatenate()([input_tensor, x])
+        x = tf.keras.layers.Dropout(0.25)(x)
+
+        y = tf.keras.layers.MaxPool2D((1,1), strides=(2,2), padding='same')(input_tensor)
+        return tf.keras.layers.Concatenate()([y, x])
 
     
     inputs = tf.keras.Input(shape=input_shape)
 
-    x = tf.keras.layers.Conv2D(layers[0], (5,5), padding='same')(inputs)
-    
+    x = tf.keras.layers.Conv2D(layers[0], (7,7), padding='same')(inputs)
+    x = tf.keras.layers.Conv2D(layers[0], (3,3), activation='relu', padding='same') (x)
+
     for i in range(1,len(layers)):
         x = tf.keras.layers.BatchNormalization()(x)
         x = ResBlock(x, layers[i])
@@ -65,7 +70,12 @@ def ResNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
     
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
     x = tf.keras.layers.Flatten()(x)
-    outputs = tf.keras.layers.Dense(num_output)(x)
+    x = tf.keras.layers.Dense(256, activation='relu')(x)
+    x = tf.keras.layers.Dropout(0.5)(x)
+    outputs = tf.keras.layers.Dense(
+        num_output,
+        kernel_regularizer=tf.keras.regularizers.l2(l=0.01)
+        )(x)
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
 
