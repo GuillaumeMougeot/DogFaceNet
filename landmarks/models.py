@@ -8,6 +8,9 @@ Written by Guillaume Mougeot
 
 import tensorflow as tf
 
+############################################################
+#  "Standard" models
+############################################################
 
 def ConvNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
     inputs = tf.keras.Input(shape=input_shape)
@@ -46,18 +49,18 @@ def ConvBnNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
     return model
 
 
+def ResBlock(input_tensor, filters, strides=(2,2)):
+    x = tf.keras.layers.Conv2D(filters, (3,3), padding='same')(input_tensor)
+    x = tf.keras.layers.Conv2D(filters, (3,3), strides=strides, activation='relu', padding='same')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    #x = tf.keras.layers.Dropout(0.25)(x)
+
+    y = tf.keras.layers.MaxPool2D((1,1), strides=strides, padding='same')(input_tensor)
+    return tf.keras.layers.Concatenate()([y, x])
+
+
 def ResNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
 
-    def ResBlock(input_tensor, filters):
-        x = tf.keras.layers.Conv2D(filters, (3,3), padding='same')(input_tensor)
-        x = tf.keras.layers.Conv2D(filters, (3,3), strides=(2,2), activation='relu', padding='same')(x)
-        x = tf.keras.layers.BatchNormalization()(x)
-        x = tf.keras.layers.Dropout(0.25)(x)
-
-        y = tf.keras.layers.MaxPool2D((1,1), strides=(2,2), padding='same')(input_tensor)
-        return tf.keras.layers.Concatenate()([y, x])
-
-    
     inputs = tf.keras.Input(shape=input_shape)
 
     x = tf.keras.layers.Conv2D(layers[0], (7,7), padding='same')(inputs)
@@ -84,7 +87,33 @@ def ResNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
     
     return model
     
-    
+
+############################################################
+#  New models for multi-task training
+############################################################
+
+def MultiTaskResNet(layers, num_output=14, input_shape=(500,500,3,)):
+
+    inputs = tf.keras.Input(shape=input_shape)
+
+    x = ResBlock(inputs, layers[0],strides=(1,1))
+    for i in range(1, len(layers)-1):
+        x = ResBlock(x, layers[i])
+
+    # First output: the binary mask image
+    mask_output = tf.keras.layers.Conv2D(1,3,activation='sigmoid',padding='same',name='mask_output')(x)
+
+    x = ResBlock(x, layers[-1])
+
+    x = tf.keras.layers.GlobalAveragePooling2D()(x)
+    x = tf.keras.layers.Flatten()(x)
+
+    # Second output: the 10 facial landmarks
+    landmarks_output = tf.keras.layers.Dense(10, name='landmarks_output')(x)
+
+    model = tf.keras.Model(inputs=inputs, outputs=[mask_output, landmarks_output])
+
+    return model
 
 
 
@@ -94,8 +123,8 @@ def ResNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
 
 """
 The following method doesn't work... why? I don't know yet
-Apparently denses layers needs an input shape to be precized
-but not the conv layers... doesn't make sense for me
+Answer: Apparently denses layers needs an input shape to be precized
+but not the conv layers
 """
 # class ConvNet(tf.keras.Model):
 #     def __init__(self, layers, num_classes):

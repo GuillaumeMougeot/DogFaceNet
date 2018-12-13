@@ -33,6 +33,7 @@ def resize_dataset(path='../data/landmarks/', output_shape=(500,500,3)):
         if '.csv' in file:
             csv_path += file
     df = pd.read_csv(csv_path)
+    df = df[df['region_count']==7]
 
     index = df.index
     
@@ -43,7 +44,7 @@ def resize_dataset(path='../data/landmarks/', output_shape=(500,500,3)):
     labels = np.empty((0,7,2))
     
     print("Resizing images...")
-    for i in tqdm(range(0,len(filenames)-7,7)):
+    for i in tqdm(range(0,len(filenames),7)):
         image = sk.io.imread(path + 'images/' + filenames[i])
         
         if len(image.shape)>1:
@@ -62,7 +63,7 @@ def resize_dataset(path='../data/landmarks/', output_shape=(500,500,3)):
                     dictionary[i + j]['cy'] * a
                     ])
             
-            labels = np.append(labels, np.expand_dims(landmarks, axis=0), axis=0)
+            labels = np.vstack((labels,np.expand_dims(landmarks,0)))
         
     np.save(path + 'resized_labels.npy', labels)
     print("Done.")
@@ -224,16 +225,41 @@ def compute_masks(path_cvs='../data/landmarks/', path_in='../data/landmarks/imag
             sk.io.imsave(path_out + filenames[n], mask)
 
 
+def rename_masks(path_csv='../data/landmarks/', path_in='../data/landmarks/masks/', path_out='../data/landmarks/renamed_masks/'):
+    csv_path = path_csv
+    for file in os.listdir(csv_path):
+        if '.csv' in file:
+            csv_path += file
+            print("Found csv!")
+    df = pd.read_csv(csv_path)
+    df = df[df['region_count']==7]
+
+    
+    filenames = df.loc[:,'filename']
+
+    f_masks = os.listdir(path_in)
+
+    print("Renaming files...")
+    for i in tqdm(range(0,len(filenames),7)):
+        if filenames[i] in f_masks:
+            os.rename(path_in+filenames[i], path_out+str(i//7)+'.jpg')
+    print("Done.")
 
 
-
+def resize_mask(path_in='../data/landmarks/renamed_masks/', path_out='../data/landmarks/resized_masks/', output_shape=(500,500)):
+    for file in os.listdir(path_in):
+        image = sk.io.imread(path_in+file)
+        image_resized = sk.transform.resize(image, output_shape)
+        sk.io.imsave(path_out+file, image_resized)
 
 if __name__=="__main__":
-    #resize_dataset(output_shape=(100,100,3))
+    resize_dataset(output_shape=(500,500,3))
     #re_resize_dataset(output_shape=(100,100,3))
     #train_images, train_labels, valid_images, valid_labels = get_resized_dataset()
     #rename_dataset()
 
-    compute_masks()
+    #compute_masks()
+    #rename_masks()
+    #resize_mask()
 
     
