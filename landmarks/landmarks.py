@@ -19,11 +19,11 @@ PATH = '../data/landmarks/'
 IMAGE_SIZE = (128,128,3)
 
 # Limite size of input for testing
-TEST_LIMIT = 128
+TEST_LIMIT = 1000
 
 SPLIT = 0.8
-BATCH_SIZE = 16
-EPOCHS = 1
+BATCH_SIZE = 32
+EPOCHS = 20
 STEPS_PER_EPOCH = 40
 
 
@@ -59,6 +59,8 @@ print(filenames.shape)
 assert len(f_masks)==len(labels)
 assert len(filenames)==len(labels)
 
+if TEST_LIMIT>len(labels):
+    TEST_LIMIT = len(labels)
 
 
 w,h,c = IMAGE_SIZE
@@ -197,4 +199,16 @@ model.fit(
 #  Prediction/Testing
 ############################################################
 
+filenames = os.listdir(PATH+'resized/')
 
+test_images = np.array([sk.io.imread(PATH+'resized/' + filenames[i]) for i in range(2)])
+
+test_images = np.array([sk.transform.resize(image, IMAGE_SIZE) for image in test_images])
+
+masks, landmarks = model.predict(test_images)
+
+for i in range(len(masks)):
+    out = sk.transform.resize(masks[i], (500,500,3))
+    sk.io.imsave('test' + str(i) + '.jpg', out)
+
+print(landmarks)
