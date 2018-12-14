@@ -7,6 +7,7 @@ Written by Guillaume Mougeot
 """
 
 import tensorflow as tf
+import numpy as np
 
 ############################################################
 #  "Standard" models
@@ -92,7 +93,7 @@ def ResNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
 #  New models for multi-task training
 ############################################################
 
-def MultiTaskResNet(layers, num_output=14, input_shape=(500,500,3,)):
+def MultiTaskResNet(layers, num_output=10, input_shape=(500,500,3,)):
 
     inputs = tf.keras.Input(shape=input_shape)
 
@@ -103,18 +104,147 @@ def MultiTaskResNet(layers, num_output=14, input_shape=(500,500,3,)):
     # First output: the binary mask image
     mask_output = tf.keras.layers.Conv2D(1,3,activation='sigmoid',padding='same',name='mask_output')(x)
 
+
+
     x = ResBlock(x, layers[-1])
 
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
     x = tf.keras.layers.Flatten()(x)
 
     # Second output: the 10 facial landmarks
-    landmarks_output = tf.keras.layers.Dense(10, name='landmarks_output')(x)
+    landmarks_output = tf.keras.layers.Dense(num_output, name='landmarks_output')(x)
 
     model = tf.keras.Model(inputs=inputs, outputs=[mask_output, landmarks_output])
 
     return model
 
+
+def TriNet(ratio=4, input_shape=(128,128,4)):
+    """
+    Arguments:
+     -ratio: ratio of channel reduction in SE module
+     -imput_shape: input image shape
+    """
+    
+    def CBA_layer(x, filters, size=3, depth=2):
+        
+        for _ in range(depth):
+            x = tf.keras.layers.Conv2D(filters, (size, size), padding='same') (x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.Activation('relu')(x)
+            
+        return x
+    
+    def Res_layer(x, num_split, filters):
+        '''
+        ResNet-like layer
+        '''
+        
+        # Spliting the branches and changing the size of the convolution
+        splitted_branches = list()
+        
+        for i in range(num_split):
+            if i+1 < 6:
+                size = i+1 
+            else:
+                size = 3
+            branch = CBA_layer(x, filters, size)
+            splitted_branches.append(branch)
+        
+        x = tf.keras.layers.concatenate(splitted_branches)
+        
+        x = tf.keras.layers.Conv2D(filters, (3, 3), padding='same') (x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        
+        return x
+    
+    def SE_layer(x):
+        '''
+        SENet-like layer
+        '''
+        out_dim = int(np.shape(x)[-1])
+        squeeze = tf.keras.layers.GlobalAveragePooling2D()(x)
+        
+        excitation = tf.keras.layers.Dense(units=out_dim // ratio)(squeeze)
+        excitation = tf.keras.layers.Activation('relu')(excitation)
+        excitation = tf.keras.layers.Dense(units=out_dim)(excitation)
+        excitation = tf.keras.layers.Activation('sigmoid')(excitation)
+        excitation = tf.keras.layers.Reshape((1,1,out_dim))(excitation)
+        
+        scale = tf.keras.layers.multiply([x,excitation])
+        
+        return scale
+    
+    def RSE_layer(x, num_split, filters):
+        r = Res_layer(x, num_split, filters)
+        s = SE_layer(r)
+        c = tf.keras.layers.concatenate([x,s])
+        return tf.keras.layers.Activation('relu')(c)
+    
+
+    inputs = tf.keras.Input()
+
+    s = tf.keras.layers.Lambda(lambda x: x / 255) (inputs)
+    
+    #Down 1
+    r1 = RSE_layer(s, 3, 8)
+    x = tf.keras.layers.MaxPooling2D((2, 2)) (r1)
+    
+    #Down 2
+    r2 = RSE_layer(x, 4, 16)
+    x = tf.keras.layers.MaxPooling2D((2, 2)) (r2)
+    
+    #Down 3
+    r3 = RSE_layer(x, 6, 32)
+    x = tf.keras.layers.MaxPooling2D((2, 2)) (r3)
+    
+    #Down 4
+    r4 = RSE_layer(x, 8, 64)
+    x = tf.keras.layers.MaxPooling2D((2, 2)) (r4)
+    
+    #Down 5
+    r5 = RSE_layer(x, 8, 128)
+    x = tf.keras.layers.MaxPooling2D((2, 2)) (r5)
+    
+    #Middle
+    x = RSE_layer(x, 6, 256)
+
+    # First branch: landmarks detection
+    y = RSE_layer(x, 4, 512)
+    y = tf.keras.layers.GlobalAveragePooling2D()(y)
+    y = tf.keras.layers.Flatten()(y)
+    y = tf.keras.layers.Dense(10)(y)
+    landmarks_output = tf.keras.layers.Lambda(lambda x: x * 255)(y)
+    
+    # Second branch: mask generation
+    #Up 1
+    x = tf.keras.layers.Conv2DTranspose(128, (2, 2), strides=(2, 2), padding='same') (x)
+    x = tf.keras.layers.concatenate([x,r5])
+    x = RSE_layer(x, 8, 128)
+    
+    #Up 2
+    x = tf.keras.layers.Conv2DTranspose(64, (2, 2), strides=(2, 2), padding='same') (x)
+    x = tf.keras.layers.concatenate([x,r4])
+    x = RSE_layer(x, 8, 64)
+    
+    #Up 3
+    x = tf.keras.layers.Conv2DTranspose(32, (2, 2), strides=(2, 2), padding='same') (x)
+    x = tf.keras.layers.concatenate([x,r3])
+    x = RSE_layer(x, 6, 32)
+    
+    #Up 4
+    x = tf.keras.layers.Conv2DTranspose(16, (2, 2), strides=(2, 2), padding='same') (x)
+    x = tf.keras.layers.concatenate([x,r2])
+    x = RSE_layer(x, 4, 16)
+    
+    #Up 5
+    x = tf.keras.layers.Conv2DTranspose(8, (2, 2), strides=(2, 2), padding='same') (x)
+    x = tf.keras.layers.concatenate([x,r1])
+    x = RSE_layer(x, 3, 8)
+    
+    mask_output = tf.keras.layers.Conv2D(1, (1, 1), activation='sigmoid') (x)
+    
+    return tf.keras.Model(inputs, [landmarks_output, mask_output])
 
 
 ############################################################
