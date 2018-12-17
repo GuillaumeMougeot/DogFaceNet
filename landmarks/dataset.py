@@ -13,6 +13,7 @@ import pandas as pd
 from ast import literal_eval # string to dict
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import pickle
 
 
 ############################################################
@@ -20,7 +21,7 @@ from tqdm import tqdm
 ############################################################
 
 
-def resize_dataset(path='../data/landmarks/', output_shape=(500,500,3)):
+def resize_dataset_landmarks(path='../data/landmarks/', output_shape=(500,500,3)):
     """
     Resize images from the {path + 'images/'} directory and the labels from
     the csv file in the {path} directory.
@@ -128,7 +129,7 @@ def get_resized_dataset(path='../data/landmarks/', split=0.8, shape=(500,500,3))
 
 
 ############################################################
-#  Data pre-processing for MTCNN
+#  Data pre-processing for mask computation
 ############################################################
 
 def solve(dictionary, n):
@@ -161,8 +162,6 @@ def solve(dictionary, n):
     A = np.array([[x_6, -y_6, 1, 0], [y_6, x_6, 0, 1], [x_7, -y_7, 1, 0], [y_7, x_7, 0, 1]])
     b = np.array([1/2.0, 1, 1/2.0, 0])
 
-#     sol = np.linalg.inv(A.T.dot(A)).dot(A.T.dot(b))
-
     # Add constraints: the eyes middle point and nose middle points should be in the middle of the picture
     A_c = np.append(A, np.array([[x_1 + x_5, -(y_1 + y_5), 2, 0], [x_2 + x_4, -(y_2 + y_4), 2, 0]]), axis=0)
     b_c = np.append(b, [1, 1])
@@ -175,6 +174,123 @@ def solve(dictionary, n):
     sol = np.linalg.inv(A_c.T.dot(A_c)).dot(A_c.T.dot(b_c))
     
     return np.array([[sol[0], -sol[1], sol[2]],[sol[1], sol[0], sol[3]], [0,0,1]])
+
+
+def solve_vect(dictionary, n, a=1.0, b=1.0):
+    """
+    Arguments:
+     -dictionary: the dictionary containing the images
+     -n: image index (times 7 as there are 7 labels per images in the dataset)
+    Return:
+    [s*cos(theta), s*sin(theta), tx, ty]
+    """
+
+    # Here we are in matplotlib coordinate system
+    x_6 = dictionary[5+n]['cx'] * b
+    y_6 = dictionary[5+n]['cy'] * a
+    x_7 = dictionary[6+n]['cx'] * b
+    y_7 = dictionary[6+n]['cy'] * a
+
+    x_2 = dictionary[1+n]['cx'] * b
+    y_2 = dictionary[1+n]['cy'] * a
+    x_4 = dictionary[3+n]['cx'] * b
+    y_4 = dictionary[3+n]['cy'] * a
+
+    x_1 = dictionary[0+n]['cx'] * b
+    y_1 = dictionary[0+n]['cy'] * a
+    x_5 = dictionary[4+n]['cx'] * b
+    y_5 = dictionary[4+n]['cy'] * a
+
+    A = np.array([[x_6, -y_6, 1, 0], [y_6, x_6, 0, 1], [x_7, -y_7, 1, 0], [y_7, x_7, 0, 1]])
+    b = np.array([1/2.0, 1, 1/2.0, 0])
+
+    # Add constraints: the eyes middle point and nose middle points should be in the middle of the picture
+    A_c = np.append(A, np.array([[x_1 + x_5, -(y_1 + y_5), 2, 0], [x_2 + x_4, -(y_2 + y_4), 2, 0]]), axis=0)
+    b_c = np.append(b, [1, 1])
+
+    # Add constraints: the eyes y axis should be equal (eyes are horizontal)
+    # y_1 = y_5 => y_1 - y_5 = 0
+    A_c = np.append(A_c, np.array([[y_1 - y_5, x_1 - x_5,0,0],[y_2 - y_4, x_2 - x_4,0,0]]), axis=0)
+    b_c = np.append(b_c, [0,0])
+
+    sol = np.linalg.inv(A_c.T.dot(A_c)).dot(A_c.T.dot(b_c))
+    
+    return sol
+
+
+def compute_dataset(path='../data/landmarks/', output_shape=(500,500,3)):
+    """
+    Resize images from the {path + 'images/'} directory and the labels from
+    the csv file in the {path} directory.
+    The size of the output images is defined by output_shape.
+    Then the resized images will be saved in {path + 'resized/'} directory
+    and the resized labels in {path + 'resized_labels.npy'}
+    """
+    csv_path = path
+    for file in os.listdir(path):
+        if '.csv' in file:
+            csv_path += file
+    df = pd.read_csv(csv_path)
+    df = df[df['region_count']==7]
+
+    index = df.index
+    
+    filenames = df.loc[:,'filename']
+    dictionary = [literal_eval(df.loc[:,'region_shape_attributes'][i]) for i in range(len(index))]
+
+    h_o,w_o,_ = output_shape
+
+    # output_labels size:
+    # 15 = 1 for class (0 for negative or 1 for positive) + 4 for bbox + 10 for landmarks
+    output_classes = np.empty(0)
+    output_bboxes = np.empty((0,4))
+    output_landmarks = np.empty((0,10))
+    output_filenames = []
+
+    print("Resizing images...")
+    for i in tqdm(range(0,len(filenames),7)):
+        image = sk.io.imread(path + 'images/' + filenames[i])
+        
+        if len(image.shape)>1:
+            # Compute positive image
+            image_resized = sk.transform.resize(image, output_shape, mode='reflect', anti_aliasing=False)
+
+            output_filenames += [path + 'resized/' + str(i//7) + '.jpg']
+
+            sk.io.imsave(output_filenames[-1], image_resized)
+
+            h_i, w_i, _ = image.shape
+
+            # First output: the sample class
+            # here 1 because positive
+            output_classes = np.append(output_classes,1.0)
+
+            # Second output: the bounding box
+            a = h_o/h_i
+            b = w_o/w_i
+            bbox = solve_vect(dictionary,i, a, b)
+
+            output_bboxes = np.vstack(output_bboxes, np.expand_dims(bbox,0))
+
+            # Third output: the 5 landmarks
+            landmarks = np.empty(10)
+
+            for j in range(0,10,2):
+                landmarks[j] = dictionary[i + j//2]['cx'] * b
+                landmarks[j+1] = dictionary[i + j//2]['cy'] * a
+            
+            output_landmarks = np.vstack(output_landmarks, np.expand_dims(landmarks,0))
+
+            # Compute the three negative images if possible
+            # I said 'if possible' because the size of the dog face in the picture can be too big
+            # To check if it is possible we check the size of the overlap between the face bounding
+            # box and the picture size.
+            
+
+
+
+
+    print("Done.")
 
 
 
@@ -252,8 +368,11 @@ def resize_mask(path_in='../data/landmarks/renamed_masks/', path_out='../data/la
         image_resized = sk.transform.resize(image, output_shape)
         sk.io.imsave(path_out+file, image_resized)
 
-if __name__=="__main__":
-    resize_dataset(output_shape=(500,500,3))
+
+
+
+#if __name__=="__main__":
+    #resize_dataset(output_shape=(500,500,3))
     #re_resize_dataset(output_shape=(100,100,3))
     #train_images, train_labels, valid_images, valid_labels = get_resized_dataset()
     #rename_dataset()

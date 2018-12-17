@@ -90,33 +90,8 @@ def ResNet(layers, num_output=14, input_shape=(500,500,3,), weight=None):
     
 
 ############################################################
-#  New models for multi-task training
+#  Models U-Net like training
 ############################################################
-
-def MultiTaskResNet(layers, num_output=10, input_shape=(500,500,3,)):
-
-    inputs = tf.keras.Input(shape=input_shape)
-
-    x = ResBlock(inputs, layers[0],strides=(1,1))
-    for i in range(1, len(layers)-1):
-        x = ResBlock(x, layers[i])
-
-    # First output: the binary mask image
-    mask_output = tf.keras.layers.Conv2D(1,3,activation='sigmoid',padding='same',name='mask_output')(x)
-
-
-
-    x = ResBlock(x, layers[-1])
-
-    x = tf.keras.layers.GlobalAveragePooling2D()(x)
-    x = tf.keras.layers.Flatten()(x)
-
-    # Second output: the 10 facial landmarks
-    landmarks_output = tf.keras.layers.Dense(num_output, name='landmarks_output')(x)
-
-    model = tf.keras.Model(inputs=inputs, outputs=[mask_output, landmarks_output])
-
-    return model
 
 
 def TriNet(ratio=4, input_shape=(128,128,4)):
@@ -214,7 +189,7 @@ def TriNet(ratio=4, input_shape=(128,128,4)):
     y = tf.keras.layers.GlobalAveragePooling2D()(y)
     y = tf.keras.layers.Flatten()(y)
     y = tf.keras.layers.Dense(10)(y)
-    landmarks_output = tf.keras.layers.Lambda(lambda x: x * 255)(y)
+    landmarks_output = tf.keras.layers.Lambda(lambda x: x * 255, name='landmarks_output')(y)
     
     # Second branch: mask generation
     #Up 1
@@ -242,9 +217,40 @@ def TriNet(ratio=4, input_shape=(128,128,4)):
     x = tf.keras.layers.concatenate([x,r1])
     x = RSE_layer(x, 3, 8)
     
-    mask_output = tf.keras.layers.Conv2D(1, (1, 1), activation='sigmoid') (x)
+    mask_output = tf.keras.layers.Conv2D(1, (1, 1), activation='sigmoid', name='mask_output') (x)
     
     return tf.keras.Model(inputs, [landmarks_output, mask_output])
+
+
+############################################################
+#  Models for multi-task training
+############################################################
+
+
+def MultiTaskResNet(layers, num_output=10, input_shape=(500,500,3,)):
+
+    inputs = tf.keras.Input(shape=input_shape)
+
+    x = ResBlock(inputs, layers[0],strides=(1,1))
+    for i in range(1, len(layers)-1):
+        x = ResBlock(x, layers[i])
+
+    # First output: the binary mask image
+    mask_output = tf.keras.layers.Conv2D(1,3,activation='sigmoid',padding='same',name='mask_output')(x)
+
+
+
+    x = ResBlock(x, layers[-1])
+
+    x = tf.keras.layers.GlobalAveragePooling2D()(x)
+    x = tf.keras.layers.Flatten()(x)
+
+    # Second output: the 10 facial landmarks
+    landmarks_output = tf.keras.layers.Dense(num_output, name='landmarks_output')(x)
+
+    model = tf.keras.Model(inputs=inputs, outputs=[mask_output, landmarks_output])
+
+    return model
 
 
 ############################################################
