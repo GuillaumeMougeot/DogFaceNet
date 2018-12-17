@@ -1,7 +1,14 @@
+"""
+DogFaceNet
+Bunch of geometric utility functions
+
+Licensed under the MIT License (see LICENSE for details)
+Written by Guillaume Mougeot
+"""
 import numpy as np 
 
 ############################################################
-#  Image fractionning
+#  Image fractioning
 ############################################################
 
 def frac(h,w,n=5):
