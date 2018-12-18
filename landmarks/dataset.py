@@ -14,6 +14,7 @@ from ast import literal_eval # string to dict
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import pickle
+import utils
 
 
 ############################################################
@@ -218,18 +219,22 @@ def solve_vect(dictionary, n, a=1.0, b=1.0):
     return sol
 
 
-def compute_dataset(path='../data/landmarks/', output_shape=(500,500,3)):
+def compute_dataset(path='../data/landmarks/', output_shape=(500,500,3), area_threshold=0.1):
     """
     Resize images from the {path + 'images/'} directory and the labels from
     the csv file in the {path} directory.
     The size of the output images is defined by output_shape.
     Then the resized images will be saved in {path + 'resized/'} directory
-    and the resized labels in {path + 'resized_labels.npy'}
+    and the resized labels in {path + 'dict.pickle'}
+    Arguments:
+     -threshold: for background image selection: we will check if the area of the intersection
+      between the face bounding and the cropped image is below this threshold
     """
     csv_path = path
     for file in os.listdir(path):
         if '.csv' in file:
             csv_path += file
+            print('Found csv!')
     df = pd.read_csv(csv_path)
     df = df[df['region_count']==7]
 
@@ -246,6 +251,9 @@ def compute_dataset(path='../data/landmarks/', output_shape=(500,500,3)):
     output_bboxes = np.empty((0,4))
     output_landmarks = np.empty((0,10))
     output_filenames = []
+    
+    count_pos = 0
+    count_neg = 0
 
     print("Resizing images...")
     for i in tqdm(range(0,len(filenames),7)):
@@ -270,7 +278,7 @@ def compute_dataset(path='../data/landmarks/', output_shape=(500,500,3)):
             b = w_o/w_i
             bbox = solve_vect(dictionary,i, a, b)
 
-            output_bboxes = np.vstack(output_bboxes, np.expand_dims(bbox,0))
+            output_bboxes = np.vstack((output_bboxes, np.expand_dims(bbox,0)))
 
             # Third output: the 5 landmarks
             landmarks = np.empty(10)
@@ -279,17 +287,70 @@ def compute_dataset(path='../data/landmarks/', output_shape=(500,500,3)):
                 landmarks[j] = dictionary[i + j//2]['cx'] * b
                 landmarks[j+1] = dictionary[i + j//2]['cy'] * a
             
-            output_landmarks = np.vstack(output_landmarks, np.expand_dims(landmarks,0))
+            output_landmarks = np.vstack((output_landmarks, np.expand_dims(landmarks,0)))
+
+            count_pos += 1
 
             # Compute the three negative images if possible
             # I said 'if possible' because the size of the dog face in the picture can be too big
             # To check if it is possible we check the size of the overlap between the face bounding
             # box and the picture size.
+            h_out, w_out = utils.frac(h_i,w_i)
+            new_h = h_i//h_out
+            new_w = w_i//w_out
+            M = solve(dictionary, i)
+            P = np.linalg.inv(M)
+            A = P.dot([0,0,1])
+            B = P.dot([1,0,1])
+            C = P.dot([1,1,1])
+            D = P.dot([0,1,1])
+
             
+            for k in range(w_out):
+                for l in range(h_out):
+                    if count_neg > count_pos * 3:
+                        break
 
+                    # Computes the patch: its a piece of the original image
+                    patch = np.array([[new_h*l,new_w*k], [new_h*l,new_w*(k+1)], [new_h*(l+1),new_w*(k+1)], [new_h*(l+1),new_w*k]])
 
+                    # Converts the bbox initially written in matplotlib coord to image coord
+                    bbox = np.array([[A[1],A[0]],[B[1],B[0]],[C[1],C[0]],[D[1],D[0]]])
 
+                    # Computes the intersection polygone
+                    inter = utils.intersect_polygone_polygone(patch,bbox)
 
+                    # Computes the intersection area
+                    inter_area = utils.polygone_area(inter)/utils.polygone_area(bbox)
+
+                    # Checks if we are below a given threshold
+                    if inter_area < area_threshold:
+                        # Then we add the image to the list
+                        image_cropped = image[new_h*l:new_h*(l+1),new_w*k:new_w*(k+1),:]
+                        image_cropped_resized = sk.transform.resize(image_cropped, output_shape, mode='reflect', anti_aliasing=False)
+
+                        output_filenames += [path + 'resized/' + str(i//7) + '_neg_' + str(k*w_out+l) +  '.jpg']
+
+                        sk.io.imsave(output_filenames[-1], image_cropped_resized)
+
+                        output_classes = np.append(output_classes,0.0)
+                        output_bboxes = np.vstack((output_bboxes, np.empty((1,4))))
+                        output_landmarks = np.vstack((output_landmarks, np.empty((1,10))))
+
+                        count_neg += 1
+
+    # TODO: add partial face images
+    # TODO: add pyramid size 
+
+    assert len(output_filenames)==len(output_classes)==len(output_bboxes)==len(output_landmarks)
+    output_dict={
+        'filenames': np.array(output_filenames),
+        'classes': output_classes,
+        'bboxes': output_bboxes,
+        'landmarks': output_landmarks
+        }
+    with open(path + 'dict.pickle', 'wb') as handle:
+        pickle.dump(output_dict,handle)
     print("Done.")
 
 
@@ -371,7 +432,8 @@ def resize_mask(path_in='../data/landmarks/renamed_masks/', path_out='../data/la
 
 
 
-#if __name__=="__main__":
+if __name__=="__main__":
+    compute_dataset(output_shape=(100,100,3))
     #resize_dataset(output_shape=(500,500,3))
     #re_resize_dataset(output_shape=(100,100,3))
     #train_images, train_labels, valid_images, valid_labels = get_resized_dataset()

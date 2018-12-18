@@ -1,5 +1,4 @@
 data/
-tmp/
 .vscode/
 *.h5
 output/
