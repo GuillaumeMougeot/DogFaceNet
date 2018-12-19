@@ -227,6 +227,51 @@ def TriNet(ratio=4, input_shape=(128,128,4)):
 ############################################################
 
 
+def PNet(alpha_bbox=0.5, alpha_landmarks=0.5):
+    input_image = tf.keras.Input(shape=(None,None,3,), name='input_image')
+    input_beta = tf.keras.Input(shape=(1,), name='input_beta')
+
+    s = tf.keras.layers.Lambda(lambda x: x / 255.0) (input_image)
+    x = tf.keras.layers.Conv2D(10,(3,3))(s)
+    x = tf.keras.layers.MaxPool2D((2,2))(x)
+    x = tf.keras.layers.Conv2D(16,(3,3))(x)
+    x = tf.keras.layers.Conv2D(32,(3,3))(x)
+
+    branch_class = tf.keras.layers.Conv2D(2,(3,3), activation='relu')(x)
+    branch_class = tf.keras.layers.GlobalAveragePooling2D()(branch_class)
+    branch_class = tf.keras.layers.Flatten()(branch_class)
+    output_class = tf.keras.layers.Dense(1,activation='sigmoid',name='output_class')(branch_class)
+
+    branch_bbox = tf.keras.layers.Conv2D(4, (3,3), activation='relu')(x)
+    branch_bbox = tf.keras.layers.GlobalAveragePooling2D()(branch_bbox)
+    branch_bbox = tf.keras.layers.Flatten()(branch_bbox)
+    branch_bbox = tf.keras.layers.Dense(4)(branch_bbox)
+
+    beta_bbox = tf.keras.layers.Lambda(lambda x: x*alpha_bbox)(input_beta)
+    output_bbox = tf.keras.layers.multiply([
+        beta_bbox,
+        branch_bbox],
+        name='output_bbox'
+    )
+
+    branch_landmarks = tf.keras.layers.Conv2D(10, (3,3), activation='relu')(x)
+    branch_landmarks = tf.keras.layers.GlobalAveragePooling2D()(branch_landmarks)
+    branch_landmarks = tf.keras.layers.Flatten()(branch_landmarks)
+    branch_landmarks = tf.keras.layers.Dense(10)(branch_landmarks)
+
+    beta_landmarks = tf.keras.layers.Lambda(lambda x: x*alpha_landmarks)(input_beta)
+    output_landmarks = tf.keras.layers.multiply([
+        beta_landmarks,
+        branch_landmarks],
+        name='output_landmarks'
+    )
+
+    model = tf.keras.Model(inputs=[input_image, input_beta], outputs=[output_class,output_bbox,output_landmarks])
+
+    return model
+
+
+
 def MultiTaskResNet(layers, num_output=10, input_shape=(500,500,3,)):
 
     inputs = tf.keras.Input(shape=input_shape)
