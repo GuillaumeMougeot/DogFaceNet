@@ -219,7 +219,7 @@ def solve_vect(dictionary, n, a=1.0, b=1.0):
     return sol
 
 
-def compute_dataset(path='../data/landmarks/', output_shape=(500,500,3), area_threshold=0.1):
+def compute_dataset(path='../data/landmarks/', output_shape=(500,500,3), area_threshold=0.1, neg_pos_ratio=3):
     """
     Resize images from the {path + 'images/'} directory and the labels from
     the csv file in the {path} directory.
@@ -229,6 +229,7 @@ def compute_dataset(path='../data/landmarks/', output_shape=(500,500,3), area_th
     Arguments:
      -threshold: for background image selection: we will check if the area of the intersection
       between the face bounding and the cropped image is below this threshold
+     -neg_pos_ratio: ratio of negative images with respect to positive ones
     """
     csv_path = path
     for file in os.listdir(path):
@@ -308,7 +309,7 @@ def compute_dataset(path='../data/landmarks/', output_shape=(500,500,3), area_th
             
             for k in range(w_out):
                 for l in range(h_out):
-                    if count_neg > count_pos * 3:
+                    if count_neg > count_pos * neg_pos_ratio:
                         break
 
                     # Computes the patch: its a piece of the original image
@@ -334,8 +335,8 @@ def compute_dataset(path='../data/landmarks/', output_shape=(500,500,3), area_th
                         sk.io.imsave(output_filenames[-1], image_cropped_resized)
 
                         output_classes = np.append(output_classes,0.0)
-                        output_bboxes = np.vstack((output_bboxes, np.empty((1,4))))
-                        output_landmarks = np.vstack((output_landmarks, np.empty((1,10))))
+                        output_bboxes = np.vstack((output_bboxes, np.zeros((1,4))))
+                        output_landmarks = np.vstack((output_landmarks, np.zeros((1,10))))
 
                         count_neg += 1
 
@@ -433,7 +434,7 @@ def resize_mask(path_in='../data/landmarks/renamed_masks/', path_out='../data/la
 
 
 if __name__=="__main__":
-    compute_dataset(output_shape=(100,100,3))
+    compute_dataset(output_shape=(500,500,3), neg_pos_ratio=1)
     #resize_dataset(output_shape=(500,500,3))
     #re_resize_dataset(output_shape=(100,100,3))
     #train_images, train_labels, valid_images, valid_labels = get_resized_dataset()
