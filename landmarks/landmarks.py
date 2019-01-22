@@ -157,7 +157,7 @@ losses = {
     "landmarks_output": "mse"
 }
 
-model.compile(optimizer=tf.train.AdamOptimizer(),
+model.compile(optimizer=tf.keras.optimizers.Adam(),
               loss=losses,
               metrics=['accuracy']) 
 
