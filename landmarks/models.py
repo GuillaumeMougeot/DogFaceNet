@@ -227,8 +227,8 @@ def TriNet(ratio=4, input_shape=(128,128,4)):
 ############################################################
 
 
-def PNet(alpha_bbox=0.5, alpha_landmarks=0.5):
-    input_image = tf.keras.Input(shape=(None,None,3,), name='input_image')
+def PNet(input_shape=(None,None,3,), alpha_bbox=0.5, alpha_landmarks=0.5):
+    input_image = tf.keras.Input(shape=input_shape, name='input_image')
     input_beta = tf.keras.Input(shape=(1,), name='input_beta')
 
     s = tf.keras.layers.Lambda(lambda x: x / 255.0) (input_image)
