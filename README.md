@@ -32,4 +32,4 @@ The rest of the project contains:
 The current version of the code reaches 97% accuracy on an open-set (48 unknown dogs) of pairs of dogs pictures. That is to say that for a pair of pictures representing either the same dog or two different dogs, the current code could tell if it is the same dog or not with an accuracy of 97%.
 
 Here is the corresponding ROC curve:
-![alt text](https://raw.githubusercontent.com/GuillaumeMougeot/DogFaceNet/images/roc.png)
+![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/roc.png)
