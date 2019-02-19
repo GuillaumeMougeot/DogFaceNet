@@ -37,7 +37,8 @@ Here is the corresponding ROC curve:
 
 ### Results on face clustering
 The obtained code presents great results on face clustering (even for dog faces that the code hasn't seen before).
-Here is an example of two previously unknown dogs that were correctly clustered:
+Here is an example of two previously unknown dogs from the same breed that were correctly clustered:
 
 ![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/dfn11.clustering.14.png)
+
 ![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/dfn11.clustering.20.png)
