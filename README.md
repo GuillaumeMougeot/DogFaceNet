@@ -32,4 +32,12 @@ The rest of the project contains:
 The current version of the code reaches 97% accuracy on an open-set (48 unknown dogs) of pairs of dogs pictures. That is to say that for a pair of pictures representing either the same dog or two different dogs, the current code could tell if it is the same dog or not with an accuracy of 97%.
 
 Here is the corresponding ROC curve:
+
 ![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/roc.png)
+
+### Results on face clustering
+The obtained code presents great results on face clustering (even for dog faces that the code hasn't seen before).
+Here is an example of two previously unknown dogs that were correctly clustered:
+
+![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/dfn11.clustering.14.png)
+![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/dfn11.clustering.20.png)
