@@ -1,7 +1,9 @@
 data/
 .vscode/
 *.h5
-output/
+output/logs/
+output/model/
+output/summary/
 weights/
 
 # Byte-compiled / optimized / DLL files

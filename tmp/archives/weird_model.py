@@ -47,3 +47,159 @@ def net(input_shape, emb_size=4):
     
     model = tf.keras.Model(inputs=[input_image], outputs=out)
     return model
+
+# dogfacenet_v13
+emb_size = 16
+
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Add, GlobalAveragePooling2D
+from tensorflow.keras.layers import Activation, Dropout, Flatten, Dense, Lambda, BatchNormalization
+
+inputs = Input(shape=(104, 104, 3))
+
+x = Conv2D(16, (7, 7), use_bias=False, activation='relu', padding='same')(inputs)
+x = BatchNormalization()(x)
+
+for layer in [16,32,64,128,512]:
+    # Batch normalization layer
+    x = Conv2D(layer, (3, 3), strides=(2,2), use_bias=False, activation='relu', padding='same')(x)
+    r = BatchNormalization()(x)
+    r = Dropout(0.25)(r)
+    
+    x = Conv2D(layer, (3, 3), use_bias=False, activation='relu', padding='same')(r)
+    x = BatchNormalization()(x)
+    r = Add()([r,x])
+    r = Dropout(0.25)(r)
+    
+    x = Conv2D(layer, (3, 3), use_bias=False, activation='relu', padding='same')(r)
+    x = BatchNormalization()(x)
+    x = Add()([r,x])
+    x = Dropout(0.25)(x)
+    
+    #model.add(Dropout(0.25))
+
+x = GlobalAveragePooling2D()(x)
+x = Flatten()(x)
+x = Dropout(0.5)(x)
+x = Dense(512, activation='relu')(x)
+x = Dropout(0.5)(x)
+x = Dense(emb_size, use_bias=False)(x)
+outputs = Lambda(lambda x: tf.nn.l2_normalize(x,axis=-1))(x)
+
+model = tf.keras.Model(inputs,outputs)
+
+model.compile(loss=triplet,
+              optimizer='adam',
+              metrics=[triplet_acc])
+model.summary()
+
+# dogfacenet_v14
+emb_size = 32
+
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Add, GlobalAveragePooling2D
+from tensorflow.keras.layers import Activation, Dropout, Flatten, Dense, Lambda, BatchNormalization
+
+inputs = Input(shape=(104, 104, 3))
+
+x = Conv2D(16, (7, 7), use_bias=False, activation='relu', padding='same')(inputs)
+x = BatchNormalization()(x)
+
+x = Conv2D(16, (3, 3), strides=(2,2), activation='relu', padding='same')(x)
+x = BatchNormalization()(x)
+x = Dropout(0.25)(x)
+
+x = Conv2D(16, (3, 3), activation='relu', padding='same')(x)
+x = BatchNormalization()(x)
+x = Dropout(0.25)(x)
+
+x = Conv2D(16, (3, 3), activation='relu', padding='same')(x)
+x = BatchNormalization()(x)
+x = Dropout(0.25)(x)
+
+
+for layer in [32,64]:
+    x = Conv2D(layer, (3, 3), strides=(2,2), activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.25)(x)
+    
+    x = Conv2D(layer, (3, 3), activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.25)(x)
+    
+    x = Conv2D(layer, (3, 3), activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.25)(x)
+
+for layer in [128,512]:
+    # Batch normalization layer
+    x = Conv2D(layer, (3, 3), strides=(2,2), use_bias=False, activation='relu', padding='same')(x)
+    r = BatchNormalization()(x)
+    r = Dropout(0.25)(r)
+    
+    x = Conv2D(layer, (3, 3), use_bias=False, activation='relu', padding='same')(r)
+    x = BatchNormalization()(x)
+    r = Add()([r,x])
+    r = Dropout(0.25)(r)
+    
+    x = Conv2D(layer, (3, 3), use_bias=False, activation='relu', padding='same')(r)
+    x = BatchNormalization()(x)
+    x = Add()([r,x])
+    x = Dropout(0.25)(x)
+
+x = GlobalAveragePooling2D()(x)
+x = Flatten()(x)
+x = Dropout(0.5)(x)
+x = Dense(emb_size, use_bias=False)(x)
+outputs = Lambda(lambda x: tf.nn.l2_normalize(x,axis=-1))(x)
+
+model = tf.keras.Model(inputs,outputs)
+
+model.compile(loss=triplet,
+              optimizer='adam',
+              metrics=[triplet_acc])
+model.summary()
+
+# dogfacenet_v15
+emb_size = 32
+
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Add, GlobalAveragePooling2D
+from tensorflow.keras.layers import Activation, Dropout, Flatten, Dense, Lambda, BatchNormalization
+
+inputs = Input(shape=(104, 104, 3))
+
+x = Conv2D(32, (5, 5), use_bias=False, activation='relu', padding='same')(inputs)
+x = BatchNormalization()(x)
+
+for layer in [32,64,128,512,1024]:
+    # Batch normalization layer
+    x = Conv2D(layer, (3, 3), strides=(2,2), use_bias=False, activation='relu', padding='same')(x)
+    r = BatchNormalization()(x)
+    r = Dropout(0.25)(r)
+    
+    x = Conv2D(layer, (3, 3), use_bias=False, activation='relu', padding='same')(r)
+    x = BatchNormalization()(x)
+    r = Add()([r,x])
+    r = Dropout(0.25)(r)
+    
+    x = Conv2D(layer, (3, 3), use_bias=False, activation='relu', padding='same')(r)
+    x = BatchNormalization()(x)
+    x = Add()([r,x])
+    x = Dropout(0.25)(x)
+    
+    #model.add(Dropout(0.25))
+
+x = GlobalAveragePooling2D()(x)
+x = Flatten()(x)
+#model.add(Dense(1024, activation='relu'))
+x = Dropout(0.5)(x)
+x = Dense(emb_size, use_bias=False)(x)
+outputs = Lambda(lambda x: tf.nn.l2_normalize(x,axis=-1))(x)
+
+model = tf.keras.Model(inputs,outputs)
+
+model.compile(loss=triplet,
+              optimizer='adam',
+              metrics=[triplet_acc])
+model.summary()
