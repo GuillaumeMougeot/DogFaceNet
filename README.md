@@ -1,5 +1,6 @@
 # DogFaceNet
-FaceNet implementation for dog identification.
+
+This code is an implementation of a deep learning method for dog identification. It relies on the triplet loss defined in FaceNet paper and on novel deep learning techniques as ResNet networks.
 
 Dog faces pictures were retrieved from the web and aligned using three handmade labels. We used VIA tool to label the images.
 
@@ -58,7 +59,7 @@ Here is the corresponding ROC curve:
 
 ![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/roc.png)
 
-And some false accepted examples and false rejected ones:
+Here follows some false accepted examples and false rejected ones. The model mistakes are mainly due to light exposure, dogs' posture and occlusions.
 
 ![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/fa_fr.png)
 
