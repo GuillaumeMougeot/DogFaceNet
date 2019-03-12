@@ -1,10 +1,29 @@
 # DogFaceNet
 FaceNet implementation for dog identification.
 
-The stable version is in dogfacenet/dogfacenet_v8.ipynb. It contains
-* the model definition and training
-* the model evaluation on clustering and one-shot learning
+Dog faces pictures were retrieved from the web and aligned using three handmade labels. We used VIA tool to label the images.
 
+### Run this code
+
+To run the code you will need:
+* python >= 3.6.4
+* tensorflow >= 1.12.0
+* numpy >= 1.14.0
+* matplotlib >= 2.1.2
+* scikit-image >= 0.13.1
+* jupyter >= 1.0.0
+* tqdm >= 4.23.4
+
+### Content
+
+
+The stable version is in dogfacenet/dogfacenet_v10-stable.ipynb. You can run it into jupyter notebook. It contains:
+
+* the data-preprocessing after alignment
+* the model definition and training
+* the model evaluation on verification, recognition and clustering
+
+The dataset is not available for now, but coming soon...
 The rest of the project contains:
 
 * (data: the images of the project) not available right now...
@@ -25,20 +44,28 @@ The rest of the project contains:
         * triplets augmentation
         * hard triplets definition
 
-* (output: contains the trained models and the convergence curves) not available right now...
+* output contains:
+    * (models: the trained models not available right now...)
+    * history: the convergence curves
 * tmp: archive of old codes and tests
 
+
 ### Results on face verification
-The current version of the code reaches 97% accuracy on an open-set (48 unknown dogs) of pairs of dogs pictures. That is to say that for a pair of pictures representing either the same dog or two different dogs, the current code could tell if it is the same dog or not with an accuracy of 97%.
+
+The current version of the code reaches 92% accuracy on an open-set (48 unknown dogs) of pairs of dogs pictures. That is to say that for a pair of pictures representing either the same dog or two different dogs, the current code could tell if it is the same dog or not with an accuracy of 92%.
 
 Here is the corresponding ROC curve:
 
 ![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/roc.png)
 
+And some false accepted examples and false rejected ones:
+
+![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/fa_fr.png)
+
+
 ### Results on face clustering
+
 The obtained code presents great results on face clustering (even for dog faces that the code hasn't seen before).
-Here is an example of two previously unknown dogs from the same breed that were correctly clustered:
+Here follows is an example of two of these clusters: the left one shows a correct example and the right one shows a mistake.
 
-![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/dfn11.clustering.14.png)
-
-![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/dfn11.clustering.20.png)
+![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/clustering.png)
