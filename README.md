@@ -46,7 +46,7 @@ The rest of the project contains:
         * hard triplets definition
 
 * output contains:
-    * (models: the trained models not available right now...)
+    * (model: the trained models not available right now...)
     * history: the convergence curves
 * tmp: archive of old codes and tests
 
