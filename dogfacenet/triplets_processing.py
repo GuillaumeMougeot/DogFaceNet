@@ -23,7 +23,6 @@ def single_apply_transform(image, datagen):
     for x in datagen.flow(image_exp, batch_size=1):
         return x[0]
 
-
 def apply_transform(images, datagen):
     """
     Apply a data preprocessing transformation to n images
@@ -33,7 +32,7 @@ def apply_transform(images, datagen):
     Return:
         -images of the same shape of the inputs but transformed
     """
-    for x in datagen.flow(images, batch_size=len(images)):
+    for x in datagen.flow(images, batch_size=len(images), shuffle=False):
         return x
 
 def define_triplets(images,labels,nbof_triplet = 10000 * 3, datagen=datagen):
