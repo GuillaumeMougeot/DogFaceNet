@@ -1,6 +1,7 @@
 """
 DogFaceNet
-A bunch of different function for training.
+A bunch of different function for training on a bigger dataset.
+It does not load all the dataset into memory but just a part of it.
 It contains:
  - Offline triplet generator: for soft and hard triplets
  - Online triplet generator: for soft and hard triplets
@@ -300,7 +301,7 @@ def online_adaptive_hard_image_generator(
     filenames,
     labels,
     model,
-    loss,
+    acc,
     batch_size=63,
     nbof_subclasses=10,
     use_aug=True,
@@ -328,7 +329,7 @@ def online_adaptive_hard_image_generator(
         subfilenames = filenames[keep_classes]
         sublabels = labels[keep_classes]
         predict = model.predict_generator(predict_generator(subfilenames, 32),
-                                          steps=np.ceil(len(subfilenames)/32))
+                                          steps=int(np.ceil(len(subfilenames)/32)))
         
         
         
@@ -343,8 +344,8 @@ def online_adaptive_hard_image_generator(
         predict = np.append(predict_hard, predict_soft, axis=0)
         
         # Proportion of hard triplets in the generated batch
-
-        hard_triplet_ratio = np.exp(-loss * 10 / batch_size)
+        hard_triplet_ratio = max(0,1.2/(1+np.exp(-10*acc+5.3))-0.19)
+        # hard_triplet_ratio = np.exp(-loss * 10 / batch_size)
 
         if isnan(hard_triplet_ratio):
             hard_triplet_ratio = 0

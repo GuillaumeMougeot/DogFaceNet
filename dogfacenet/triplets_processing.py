@@ -1,3 +1,15 @@
+"""
+DogFaceNet
+A bunch of different function for offline training.
+The online_training module should be used instead of this one:
+indeed it will load all the dataset into computer memory.
+Even if the training is slighty faster the computer can rapidly
+ran out of memory.
+
+Licensed under the MIT License (see LICENSE for details)
+Written by Guillaume Mougeot
+"""
+
 import tensorflow as tf
 import numpy as np
 from tqdm import tqdm_notebook
