@@ -321,7 +321,11 @@ def online_adaptive_hard_image_generator(
     while True:
         # Select a certain amount of subclasses
         classes = np.unique(labels)
-        subclasses = np.random.choice(classes,size=nbof_subclasses,replace=False)
+        # In order to limit the number of computation for prediction,
+        # we will not computes nbof_subclasses predictions for the hard triplets generation,
+        # but int(nbof_subclasses*hard_triplet_ratio)+2, which means that the higher the
+        # accuracy is the more prediction are going to be computed.
+        subclasses = np.random.choice(classes,size=int(nbof_subclasses*hard_triplet_ratio)+2,replace=False)
         
         keep_classes = np.equal(labels,subclasses[0])
         for i in range(1,len(subclasses)):
@@ -344,8 +348,8 @@ def online_adaptive_hard_image_generator(
         predict = np.append(predict_hard, predict_soft, axis=0)
         
         # Proportion of hard triplets in the generated batch
-        hard_triplet_ratio = max(0,1.2/(1+np.exp(-10*acc+5.3))-0.19)
-        # hard_triplet_ratio = np.exp(-loss * 10 / batch_size)
+        #hard_triplet_ratio = max(0,1.2/(1+np.exp(-10*acc+5.3))-0.19)
+        hard_triplet_ratio = np.exp(-acc * 10 / batch_size)
 
         if isnan(hard_triplet_ratio):
             hard_triplet_ratio = 0
@@ -356,9 +360,9 @@ def online_adaptive_hard_image_generator(
             i_triplet = apply_transform(i_triplet, datagen)
             
         # Modif for michael loss: re-labels the dataset from 0 to nbof_subclasses
-        dict_subclass = {subclasses[i]:i for i in range(nbof_subclasses)}
-        ridx_y_triplet = [dict_subclass[y_triplet[i]] for i in range(len(y_triplet))]
+        # dict_subclass = {subclasses[i]:i for i in range(nbof_subclasses)}
+        # ridx_y_triplet = [dict_subclass[y_triplet[i]] for i in range(len(y_triplet))]
         
-        yield (i_triplet, ridx_y_triplet)
+        yield (i_triplet, y_triplet)
 
 
