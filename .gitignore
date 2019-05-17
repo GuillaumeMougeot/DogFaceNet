@@ -4,6 +4,7 @@ data/
 output/logs/
 output/model/
 output/summary/
+output/images/
 weights/
 
 # Byte-compiled / optimized / DLL files

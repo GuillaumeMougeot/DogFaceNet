@@ -211,9 +211,11 @@ print(discriminator.summary())
 # Note that once we compile this model, updating .trainable will have no effect within
 # it. As such, it won't cause problems if we later set discriminator.trainable = True
 # for the discriminator_model, as long as we compile the generator_model first.
+"""
 for layer in discriminator.layers:
     layer.trainable = False
 discriminator.trainable = False
+"""
 generator_input = Input(shape=(100,))
 generator_layers = generator(generator_input)
 discriminator_layers_for_generator = discriminator(generator_layers)
@@ -226,13 +228,14 @@ generator_model.compile(optimizer=Adam(0.0001, beta_1=0.5, beta_2=0.9),
 
 # Now that the generator_model is compiled, we can make the discriminator
 # layers trainable.
+"""
 for layer in discriminator.layers:
     layer.trainable = True
 for layer in generator.layers:
     layer.trainable = False
 discriminator.trainable = True
 generator.trainable = False
-
+"""
 # The discriminator_model is more complex. It takes both real image samples and random
 # noise seeds as input. The noise seed is run through the generator model to get
 # generated images. Both real and generated images are then run through the
@@ -305,12 +308,14 @@ for epoch in range(100):
             image_batch = discriminator_minibatches[j * BATCH_SIZE:
                                                     (j + 1) * BATCH_SIZE]
             noise = np.random.rand(BATCH_SIZE, 100).astype(np.float32)
+            print("Train discriminator: " + str(j) + "/" + str(TRAINING_RATIO))
             discriminator_loss.append(discriminator_model.train_on_batch(
                 [image_batch, noise],
                 [positive_y, negative_y, dummy_y]))
         generator_loss.append(generator_model.train_on_batch(np.random.rand(BATCH_SIZE,
                                                                             100),
                                                              positive_y))
+        print("Train generator: " + str(i) + "/" + str(X_train.shape[0] // (BATCH_SIZE * TRAINING_RATIO)))
     # Still needs some code to display losses from the generator and discriminator,
     # progress bars, etc.
     generate_images(generator, args.output_dir, epoch)
