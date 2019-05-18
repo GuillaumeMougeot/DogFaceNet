@@ -2,11 +2,12 @@ from __future__ import print_function, division
 
 from keras.datasets import mnist
 from keras.layers import Input, Dense, Reshape, Flatten, Dropout
-from keras.layers import BatchNormalization, Activation, ZeroPadding2D
+from keras.layers import BatchNormalization, Activation, ZeroPadding2D, MaxPooling2D
+from keras.layers import Concatenate
 from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.convolutional import UpSampling2D, Conv2D, Conv2DTranspose
 from keras.models import Sequential, Model
-from keras.optimizers import Adam, RMSprop
+from keras.optimizers import Adam
 
 import matplotlib.pyplot as plt
 
@@ -19,9 +20,10 @@ import skimage as sk
 from tqdm import tqdm
 
 
-PATH = '../data/dogfacenet/aligned/after_4_resized/'
+PATH = '../data/dogfacenet/aligned/after_4_resized_2/'
+
 PATH_SAVE = '../output/images/dcgan/dogs/'
-PATH_MODEL = '../output/model/gan/'
+PATH_MODEL = '../output/model/'
 VALID_SPLIT = 0.1
 TEST_SPLIT = 0.1
 
@@ -29,20 +31,22 @@ TEST_SPLIT = 0.1
 class DCGAN():
     def __init__(self):
         # Input shape
-        self.img_rows = 127
-        self.img_cols = 127
+        self.img_rows = 28
+        self.img_cols = 28
         self.channels = 3
         self.img_shape = (self.img_rows, self.img_cols, self.channels)
         self.latent_dim = 100
 
-        optimizer_d = Adam(0.0001, 0.2)
-        optimizer_c = Adam(0.01, 0.2)
-        # optimizer = RMSprop(lr=0.005)
+        # Bug fixed: if the generator and the discriminator have the same
+        # optimizers it doesn't converge.
+        # optimizer_d = Adam(0.0002, 0.5)
+        # optimizer_c = Adam(0.001, 0.5)
+        optimizer = Adam(0.0002,0.5)
 
         # Build and compile the discriminator
         self.discriminator = self.build_discriminator()
         self.discriminator.compile(loss='binary_crossentropy',
-            optimizer=optimizer_d,
+            optimizer=optimizer,
             metrics=['accuracy'])
 
         # Build the generator
@@ -61,46 +65,77 @@ class DCGAN():
         # The combined model  (stacked generator and discriminator)
         # Trains the generator to fool the discriminator
         self.combined = Model(z, valid)
-        self.combined.compile(loss='binary_crossentropy', optimizer=optimizer_c)
+        self.combined.compile(loss='binary_crossentropy', optimizer=optimizer)
+
+    def inception_block_down(self, inputs, output_filters, strides=1):
+        x1 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x1 = MaxPooling2D(strides, padding='same')(x1)
+
+        x2 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x2 = Conv2D(output_filters//4, 3, use_bias=False, strides=strides, padding='same')(x2)
+        x2 = BatchNormalization(momentum=0.8)(x2)
+        x2 = LeakyReLU(alpha=0.2)(x2)
+
+        x3 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x3 = Conv2D(output_filters//4, 5, use_bias=False, strides=strides, padding='same')(x3)
+        x3 = BatchNormalization(momentum=0.8)(x3)
+        x3 = LeakyReLU(alpha=0.2)(x3)
+
+        x4 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x4 = Conv2D(output_filters//4, 7, use_bias=False, strides=strides, padding='same')(x4)
+        x4 = BatchNormalization(momentum=0.8)(x4)
+        x4 = LeakyReLU(alpha=0.2)(x4)
+
+        return Concatenate()([x1,x2,x3,x4])
+
+    def inception_block_up(self, inputs, output_filters, strides=1):
+        x1 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x1 = UpSampling2D(strides)(x1)
+
+        x2 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x2 = Conv2DTranspose(output_filters//4, 3, use_bias=False, strides=strides, padding='same')(x2)
+        x2 = BatchNormalization(momentum=0.8)(x2)
+        x2 = LeakyReLU(alpha=0.2)(x2)
+
+        x3 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x3 = Conv2DTranspose(output_filters//4, 5, use_bias=False, strides=strides, padding='same')(x3)
+        x3 = BatchNormalization(momentum=0.8)(x3)
+        x3 = LeakyReLU(alpha=0.2)(x3)
+
+        x4 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x4 = Conv2DTranspose(output_filters//4, 7, use_bias=False, strides=strides, padding='same')(x4)
+        x4 = BatchNormalization(momentum=0.8)(x4)
+        x4 = LeakyReLU(alpha=0.2)(x4)
+
+        return Concatenate()([x1,x2,x3,x4])
+
 
     def build_generator(self):
 
-        model = Sequential()
-
-        model.add(Reshape((1,1,self.latent_dim)))
-
-        # model.add(Conv2DTranspose(512,(6,6)))
-        # model.add(BatchNormalization(momentum=0.8))
-        # model.add(LeakyReLU(alpha=0.2))
-
-        # filters = [256,128,64,32]
-        # kernels = [3,3,3,3]
-
-        # for i in range(len(filters)):
-        #     model.add(Conv2DTranspose(filters[i],kernels[i],strides=(2,2)))
-        #     model.add(BatchNormalization(momentum=0.8))
-        #     model.add(LeakyReLU(alpha=0.2))
-
-        # model.add(Conv2DTranspose(3,(4,4),strides=(2,2)))
-        # model.add(Activation('tanh'))
-
-        model.add(Conv2DTranspose(256,(3,3)))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(LeakyReLU(alpha=0.2))
-
-        filters = [128,64,32,16]
-        kernels = [3,3,3,3]
-
-        for i in range(len(filters)):
-            model.add(Conv2DTranspose(filters[i],kernels[i],strides=(2,2)))
-            model.add(BatchNormalization(momentum=0.8))
-            model.add(LeakyReLU(alpha=0.2))
-
-        model.add(Conv2DTranspose(3,(3,3),strides=(2,2)))
-        model.add(Activation('tanh'))
-
         noise = Input(shape=(self.latent_dim,))
-        img = model(noise)
+
+        x = Reshape((1,1,self.latent_dim))(noise)
+
+        x = Conv2DTranspose(512,(3,3))(x)
+        x = BatchNormalization(momentum=0.8)(x)
+        x = LeakyReLU(alpha=0.2)(x)
+
+        x = self.inception_block_down(x, 256)
+
+        for layer in [128,64,32]:
+            if layer <= 64:
+                x = self.inception_block_up(x, layer, 2)
+            else:
+                x = Conv2DTranspose(layer,(3,3),strides=(2,2), padding='valid')(x)
+                x = BatchNormalization(momentum=0.8)(x)
+                x = LeakyReLU(alpha=0.2)(x)
+
+            x = self.inception_block_down(x, layer)
+
+        x = Conv2D(self.channels,(3,3),padding='same')(x)
+        img = Activation('tanh')(x)
+        
+        model = Model(noise, img)
 
         model.summary()
 
@@ -110,31 +145,19 @@ class DCGAN():
 
         model = Sequential()
 
-        # model.add(Conv2D(32, kernel_size=3, strides=2, input_shape=self.img_shape))
-        # model.add(BatchNormalization(momentum=0.8))
-        # model.add(LeakyReLU(alpha=0.2))
-
-
-        # for layer in [32,64,64,64,256]:
-        #     model.add(Conv2D(layer, kernel_size=3, strides=2))
-        #     model.add(BatchNormalization(momentum=0.8))
-        #     model.add(LeakyReLU(alpha=0.2))
-
-        # model.add(Conv2D(512, kernel_size=2, strides=1))
-        # model.add(BatchNormalization(momentum=0.8))
-        # model.add(LeakyReLU(alpha=0.2))
-
-        model.add(Conv2D(16, kernel_size=3, strides=2, input_shape=self.img_shape))
+        model.add(Conv2D(64, kernel_size=3, strides=2, input_shape=self.img_shape))
         model.add(BatchNormalization(momentum=0.8))
         model.add(LeakyReLU(alpha=0.2))
 
+        model.add(Conv2D(128, kernel_size=3, strides=2))
+        model.add(BatchNormalization(momentum=0.8))
+        model.add(LeakyReLU(alpha=0.2))
 
-        for layer in [32,64,128,128]:
-            model.add(Conv2D(layer, kernel_size=3, strides=2))
-            model.add(BatchNormalization(momentum=0.8))
-            model.add(LeakyReLU(alpha=0.2))
+        model.add(Conv2D(256, kernel_size=3, strides=2))
+        model.add(BatchNormalization(momentum=0.8))
+        model.add(LeakyReLU(alpha=0.2))
 
-        model.add(Conv2D(256, kernel_size=3, strides=1))
+        model.add(Conv2D(1024, kernel_size=2, strides=1))
         model.add(BatchNormalization(momentum=0.8))
         model.add(LeakyReLU(alpha=0.2))
 
@@ -157,8 +180,6 @@ class DCGAN():
         # X_train = X_train / 127.5 - 1.
         # X_train = np.expand_dims(X_train, axis=3)
 
-
-        # Load datas
         print("Load data into memory...")
         filenames = np.empty(0)
         idx = 0
@@ -209,7 +230,7 @@ class DCGAN():
             g_loss = self.combined.train_on_batch(noise, valid)
 
             # Plot the progress
-            print ("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (epoch, d_loss[0], 100*d_loss[1], g_loss))
+            # print ("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (epoch, d_loss[0], 100*d_loss[1], g_loss))
 
             # If at save interval => save generated image samples
             if epoch % save_interval == 0:
@@ -217,7 +238,6 @@ class DCGAN():
 
                 # Plot the progress
                 print ("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (epoch, d_loss[0], 100*d_loss[1], g_loss))
-                self.combined.save(PATH_MODEL+"2019.05.17.doggan_4."+str(epoch)+".h5")
 
     def save_imgs(self, epoch):
         r, c = 5, 5
@@ -231,6 +251,7 @@ class DCGAN():
         cnt = 0
         for i in range(r):
             for j in range(c):
+                # axs[i,j].imshow(gen_imgs[cnt, :,:,0], cmap='gray')
                 axs[i,j].imshow(gen_imgs[cnt, :,:,:])
                 axs[i,j].axis('off')
                 cnt += 1
@@ -240,4 +261,4 @@ class DCGAN():
 
 if __name__ == '__main__':
     dcgan = DCGAN()
-    dcgan.train(epochs=40000, batch_size=32, save_interval=200)
+    dcgan.train(epochs=20000, batch_size=32, save_interval=200)
