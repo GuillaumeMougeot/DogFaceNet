@@ -2,7 +2,7 @@ from __future__ import print_function, division
 
 from keras.datasets import mnist
 from keras.layers import Input, Dense, Reshape, Flatten, Dropout
-from keras.layers import BatchNormalization, Activation, ZeroPadding2D, MaxPooling2D
+from keras.layers import BatchNormalization, Activation, ZeroPadding2D, MaxPooling2D, AveragePooling2D
 from keras.layers import Concatenate
 from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.convolutional import UpSampling2D, Conv2D, Conv2DTranspose
@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 PATH = '../data/dogfacenet/aligned/after_4_resized_2/'
 
-PATH_SAVE = '../output/images/dcgan/dogs/'
+PATH_SAVE = '../output/images/dcgan/images/'
 PATH_MODEL = '../output/model/'
 VALID_SPLIT = 0.1
 TEST_SPLIT = 0.1
@@ -33,16 +33,15 @@ class DCGAN():
         # Input shape
         self.img_rows = 28
         self.img_cols = 28
-        self.channels = 3
+        self.channels = 1
         self.img_shape = (self.img_rows, self.img_cols, self.channels)
-        self.latent_dim = 100
+        self.latent_dim = 128
 
         # Bug fixed: if the generator and the discriminator have the same
         # optimizers it doesn't converge.
         # optimizer_d = Adam(0.0002, 0.5)
         # optimizer_c = Adam(0.001, 0.5)
-        optimizer = Adam(0.0002,0.5)
-        # optimizer = Adam(0.001,0.,0.99,1e-8,1e-5)
+        optimizer = Adam(0.0002,0.,0.99,1e-8,1e-5)
 
         # Build and compile the discriminator
         self.discriminator = self.build_discriminator()
@@ -68,48 +67,64 @@ class DCGAN():
         self.combined = Model(z, valid)
         self.combined.compile(loss='binary_crossentropy', optimizer=optimizer)
 
-    def inception_block_down(self, inputs, output_filters, strides=1):
-        x1 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+    def inception_block_down(self, inputs, output_filters, strides=1, kernels=[3,5,7]):
+        assert len(kernels)>0, "[Error] Too few kernels."
+        nbof_kernels = len(kernels) + 1
+
+        x1 = Conv2D(output_filters//nbof_kernels, 1, use_bias=False)(inputs)
         x1 = MaxPooling2D(strides, padding='same')(x1)
 
-        x2 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
-        x2 = Conv2D(output_filters//4, 3, use_bias=False, strides=strides, padding='same')(x2)
-        x2 = BatchNormalization(momentum=0.8)(x2)
-        x2 = LeakyReLU(alpha=0.2)(x2)
+        concat = [x1]
 
-        x3 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
-        x3 = Conv2D(output_filters//4, 5, use_bias=False, strides=strides, padding='same')(x3)
-        x3 = BatchNormalization(momentum=0.8)(x3)
-        x3 = LeakyReLU(alpha=0.2)(x3)
+        for i in range(nbof_kernels-1):
+            x = Conv2D(output_filters//nbof_kernels, 1, use_bias=False)(inputs)
+            x = Conv2D(output_filters//nbof_kernels, kernels[i], use_bias=False, strides=strides, padding='same')(x)
+            x = BatchNormalization(momentum=0.8)(x)
+            x = LeakyReLU(alpha=0.2)(x)
+            concat += [x]
 
-        x4 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
-        x4 = Conv2D(output_filters//4, 7, use_bias=False, strides=strides, padding='same')(x4)
-        x4 = BatchNormalization(momentum=0.8)(x4)
-        x4 = LeakyReLU(alpha=0.2)(x4)
+        return Concatenate()(concat)
 
-        return Concatenate()([x1,x2,x3,x4])
+    def inception_block_up(self, inputs, output_filters, strides=1, kernels=[3,5,7]):
+        assert len(kernels)>0, "[Error] Too few kernels."
+        nbof_kernels = len(kernels) + 1
 
-    def inception_block_up(self, inputs, output_filters, strides=1):
-        x1 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x1 = Conv2D(output_filters//nbof_kernels, 1, use_bias=False)(inputs)
         x1 = UpSampling2D(strides)(x1)
 
-        x2 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
-        x2 = Conv2DTranspose(output_filters//4, 3, use_bias=False, strides=strides, padding='same')(x2)
-        x2 = BatchNormalization(momentum=0.8)(x2)
-        x2 = LeakyReLU(alpha=0.2)(x2)
+        concat = [x1]
 
-        x3 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
-        x3 = Conv2DTranspose(output_filters//4, 5, use_bias=False, strides=strides, padding='same')(x3)
-        x3 = BatchNormalization(momentum=0.8)(x3)
-        x3 = LeakyReLU(alpha=0.2)(x3)
+        for i in range(nbof_kernels-1):
+            x = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+            x = Conv2DTranspose(output_filters//nbof_kernels, kernels[i], use_bias=False, strides=strides, padding='same')(x)
+            x = BatchNormalization(momentum=0.8)(x)
+            x = LeakyReLU(alpha=0.2)(x)
+            concat += [x]
 
-        x4 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
-        x4 = Conv2DTranspose(output_filters//4, 7, use_bias=False, strides=strides, padding='same')(x4)
-        x4 = BatchNormalization(momentum=0.8)(x4)
-        x4 = LeakyReLU(alpha=0.2)(x4)
+        return Concatenate()(concat)
 
-        return Concatenate()([x1,x2,x3,x4])
+    def first_inception_block_up(self, inputs, output_filters, strides=1, kernels=[3,3,5,7]):
+        # x1 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        # x1 = UpSampling2D(strides)(x1)
 
+        assert len(kernels)>0, "[Error] Too few kernels."
+        nbof_kernels = len(kernels)
+
+        concat = []
+        for i in range(nbof_kernels):
+            x = Conv2D(output_filters//nbof_kernels, 1, use_bias=False)(inputs)
+            x = Conv2DTranspose(output_filters//4, kernels[i], use_bias=False, strides=strides)(x)
+            x = BatchNormalization(momentum=0.8)(x)
+            x = LeakyReLU(alpha=0.2)(x)
+
+            if kernels[i]>=3:
+                x = Conv2D(output_filters//nbof_kernels, kernels[i]-2, use_bias=False)(x)
+            concat += [x]
+
+        x = Concatenate()(concat)
+        x = BatchNormalization(momentum=0.8)(x)
+        x = LeakyReLU(alpha=0.2)(x)
+        return x
 
     def build_generator(self):
 
@@ -117,21 +132,17 @@ class DCGAN():
 
         x = Reshape((1,1,self.latent_dim))(noise)
 
-        x = Conv2DTranspose(512,(3,3))(x)
-        x = BatchNormalization(momentum=0.8)(x)
-        x = LeakyReLU(alpha=0.2)(x)
+        x = self.first_inception_block_up(x, 256, 1, [3,3,5,7])
+        x = self.inception_block_down(x, 256, 1, [3,3,3])
 
-        x = self.inception_block_down(x, 256)
+        x = self.first_inception_block_up(x, 256, 2, [3,3,3,3])
+        x = self.inception_block_down(x, 256, 1, [3,3,3])
 
-        for layer in [128,64,32]:
-            if layer <= 64:
-                x = self.inception_block_up(x, layer, 2)
-            else:
-                x = Conv2DTranspose(layer,(3,3),strides=(2,2), padding='valid')(x)
-                x = BatchNormalization(momentum=0.8)(x)
-                x = LeakyReLU(alpha=0.2)(x)
+        x = self.inception_block_up(x, 512, 2, [3,3,3])
+        x = self.inception_block_down(x, 512, 1, [3,3,3])
 
-            x = self.inception_block_down(x, layer)
+        x = self.inception_block_up(x, 128, 2)
+        x = self.inception_block_down(x, 128, 1)
 
         x = Conv2D(self.channels,(3,3),padding='same')(x)
         img = Activation('tanh')(x)
@@ -144,60 +155,52 @@ class DCGAN():
 
     def build_discriminator(self):
 
-        model = Sequential()
+        img = Input(shape=self.img_shape)
 
-        model.add(Conv2D(64, kernel_size=3, strides=2, input_shape=self.img_shape))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(LeakyReLU(alpha=0.2))
+        x = self.inception_block_down(img, 64, 2)
+        x = self.inception_block_down(x, 128, 2)
+        x = self.inception_block_down(x, 256, 2)
+        x = self.inception_block_down(x, 512, 2)
 
-        model.add(Conv2D(128, kernel_size=3, strides=2))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(LeakyReLU(alpha=0.2))
+        # x = Conv2D(1024, kernel_size=2, strides=1)(x)
+        # x = BatchNormalization(momentum=0.8)(x)
+        # x = LeakyReLU(alpha=0.2)(x)
+        x = AveragePooling2D()(x)
+        x = Flatten()(x)
+        validity = Dense(1, activation='sigmoid')(x)
 
-        model.add(Conv2D(256, kernel_size=3, strides=2))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(LeakyReLU(alpha=0.2))
-
-        model.add(Conv2D(1024, kernel_size=2, strides=1))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(LeakyReLU(alpha=0.2))
-
-        model.add(Flatten())
-        model.add(Dense(1, activation='sigmoid'))
-
+        model = Model(img, validity)
+        
         model.summary()
 
-        img = Input(shape=self.img_shape)
-        validity = model(img)
-
-        return Model(img, validity)
+        return model
 
     def train(self, epochs, batch_size=128, save_interval=50):
 
         # Load the dataset
-        # (X_train, _), (_, _) = mnist.load_data()
+        (X_train, _), (_, _) = mnist.load_data()
 
-        # # Rescale -1 to 1
-        # X_train = X_train / 127.5 - 1.
-        # X_train = np.expand_dims(X_train, axis=3)
+        # Rescale -1 to 1
+        X_train = X_train / 127.5 - 1.
+        X_train = np.expand_dims(X_train, axis=3)
 
-        print("Load data into memory...")
-        filenames = np.empty(0)
-        idx = 0
-        for root,_,files in os.walk(PATH):
-            if len(files)>1:
-                for i in range(len(files)):
-                    files[i] = root + '/' + files[i]
-                filenames = np.append(filenames,files)
+        # print("Load data into memory...")
+        # filenames = np.empty(0)
+        # idx = 0
+        # for root,_,files in os.walk(PATH):
+        #     if len(files)>1:
+        #         for i in range(len(files)):
+        #             files[i] = root + '/' + files[i]
+        #         filenames = np.append(filenames,files)
 
+        # # max_size = len(filenames)
         # max_size = len(filenames)
-        max_size = len(filenames)
-        X_train = np.empty((max_size,self.img_cols,self.img_rows,self.channels))
-        for i,f in tqdm(enumerate(filenames)):
-            if i == max_size:
-                break
-            X_train[i] = sk.io.imread(f)/ 127. - 1.
-        print("done")
+        # X_train = np.empty((max_size,self.img_cols,self.img_rows,self.channels))
+        # for i,f in tqdm(enumerate(filenames)):
+        #     if i == max_size:
+        #         break
+        #     X_train[i] = sk.io.imread(f)/ 127. - 1.
+        # print("done")
 
 
         # Adversarial ground truths
@@ -252,8 +255,8 @@ class DCGAN():
         cnt = 0
         for i in range(r):
             for j in range(c):
-                # axs[i,j].imshow(gen_imgs[cnt, :,:,0], cmap='gray')
-                axs[i,j].imshow(gen_imgs[cnt, :,:,:])
+                axs[i,j].imshow(gen_imgs[cnt, :,:,0], cmap='gray')
+                # axs[i,j].imshow(gen_imgs[cnt, :,:,:])
                 axs[i,j].axis('off')
                 cnt += 1
         fig.savefig(PATH_SAVE+"mnist_%d.png" % epoch)

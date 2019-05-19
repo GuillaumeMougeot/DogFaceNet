@@ -41,8 +41,7 @@ class DCGAN():
         # optimizers it doesn't converge.
         # optimizer_d = Adam(0.0002, 0.5)
         # optimizer_c = Adam(0.001, 0.5)
-        optimizer = Adam(0.0002,0.5)
-        # optimizer = Adam(0.001,0.,0.99,1e-8,1e-5)
+        optimizer = Adam(0.0002,0.,0.99,1e-8,1e-5)
 
         # Build and compile the discriminator
         self.discriminator = self.build_discriminator()
@@ -110,6 +109,34 @@ class DCGAN():
 
         return Concatenate()([x1,x2,x3,x4])
 
+    def first_inception_block_up(self, inputs, output_filters, strides=1):
+        # x1 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        # x1 = UpSampling2D(strides)(x1)
+
+        x2 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x2 = Conv2DTranspose(output_filters//4, 3, use_bias=False, strides=strides)(x2)
+        x2 = BatchNormalization(momentum=0.8)(x2)
+        x2 = LeakyReLU(alpha=0.2)(x2)
+
+        x3 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x3 = Conv2DTranspose(output_filters//4, 5, use_bias=False, strides=strides)(x3)
+        x3 = BatchNormalization(momentum=0.8)(x3)
+        x3 = LeakyReLU(alpha=0.2)(x3)
+
+        x3 = Conv2D(output_filters//4, 3, use_bias=False)(x3)
+        x3 = BatchNormalization(momentum=0.8)(x3)
+        x3 = LeakyReLU(alpha=0.2)(x3)
+
+        x4 = Conv2D(output_filters//4, 1, use_bias=False)(inputs)
+        x4 = Conv2DTranspose(output_filters//4, 7, use_bias=False, strides=strides)(x4)
+        x4 = BatchNormalization(momentum=0.8)(x4)
+        x4 = LeakyReLU(alpha=0.2)(x4)
+
+        x4 = Conv2D(output_filters//4, 5, use_bias=False)(x4)
+        x4 = BatchNormalization(momentum=0.8)(x4)
+        x4 = LeakyReLU(alpha=0.2)(x4)
+
+        return Concatenate()([x2,x3,x4])
 
     def build_generator(self):
 
@@ -117,21 +144,23 @@ class DCGAN():
 
         x = Reshape((1,1,self.latent_dim))(noise)
 
-        x = Conv2DTranspose(512,(3,3))(x)
-        x = BatchNormalization(momentum=0.8)(x)
-        x = LeakyReLU(alpha=0.2)(x)
-
+        # x = Conv2DTranspose(512,(3,3))(x)
+        # x = BatchNormalization(momentum=0.8)(x)
+        # x = LeakyReLU(alpha=0.2)(x)
+        x = self.first_inception_block_up(x, 256)
         x = self.inception_block_down(x, 256)
 
-        for layer in [128,64,32]:
-            if layer <= 64:
-                x = self.inception_block_up(x, layer, 2)
-            else:
-                x = Conv2DTranspose(layer,(3,3),strides=(2,2), padding='valid')(x)
-                x = BatchNormalization(momentum=0.8)(x)
-                x = LeakyReLU(alpha=0.2)(x)
+        # x = Conv2DTranspose(layer,(3,3),strides=(2,2), padding='valid')(x)
+        # x = BatchNormalization(momentum=0.8)(x)
+        # x = LeakyReLU(alpha=0.2)(x)
+        x = self.first_inception_block_up(x, 256, 2)
+        x = self.inception_block_down(x, 256)
 
-            x = self.inception_block_down(x, layer)
+        x = self.inception_block_up(x, 128, 2)
+        x = self.inception_block_down(x, 128)
+
+        x = self.inception_block_up(x, 64, 2)
+        x = self.inception_block_down(x, 64)
 
         x = Conv2D(self.channels,(3,3),padding='same')(x)
         img = Activation('tanh')(x)
