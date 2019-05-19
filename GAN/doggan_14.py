@@ -1,6 +1,5 @@
 from __future__ import print_function, division
 
-from keras.datasets import mnist
 from keras.layers import Input, Dense, Reshape, Flatten, Dropout
 from keras.layers import BatchNormalization, Activation, ZeroPadding2D, MaxPooling2D, AveragePooling2D
 from keras.layers import Concatenate
@@ -22,8 +21,8 @@ from tqdm import tqdm
 
 PATH = '../data/dogfacenet/aligned/after_4_resized/'
 
-PATH_SAVE = '../output/images/dcgan/dogs/'
-PATH_MODEL = '../output/model/gan/'
+PATH_SAVE = '../output/images_IST/'
+PATH_MODEL = '../output/model/'
 VALID_SPLIT = 0.1
 TEST_SPLIT = 0.1
 
@@ -300,4 +299,4 @@ class DCGAN():
 
 if __name__ == '__main__':
     dcgan = DCGAN()
-    dcgan.train(epochs=30000, batch_size=4, save_interval=200)
+    dcgan.train(epochs=30000, batch_size=8, save_interval=200)
