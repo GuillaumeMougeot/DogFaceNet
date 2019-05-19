@@ -101,6 +101,25 @@ class DCGAN():
 
         return Concatenate()(concat)
 
+    def first_inception_block_down(self, inputs, output_filters=[64,64,64,64], kernels=[3,3,5,7], strides=1):
+        assert len(kernels)==len(output_filters), "[Error] Not the appropriate number of filters: %i kernels and %i filters." % (len(kernels), len(output_filters))
+
+        concat = []
+        for i in range(len(kernels)):
+            x = Conv2D(output_filters[i], 1, use_bias=False)(inputs)
+            x = Conv2D(output_filters[i], kernels[i], use_bias=False, strides=strides)(x)
+            x = BatchNormalization(momentum=0.8)(x)
+            x = LeakyReLU(alpha=0.2)(x)
+
+            if kernels[i]>=3:
+                x = Conv2D(output_filters[i], kernels[i]-2, use_bias=False)(x)
+            concat += [x]
+
+        x = Concatenate()(concat)
+        x = BatchNormalization(momentum=0.8)(x)
+        x = LeakyReLU(alpha=0.2)(x)
+        return x
+
     def first_inception_block_up(self, inputs, output_filters=[64,64,64,64], kernels=[3,3,5,7], strides=1):
         assert len(kernels)==len(output_filters), "[Error] Not the appropriate number of filters: %i kernels and %i filters." % (len(kernels), len(output_filters))
 
@@ -151,14 +170,10 @@ class DCGAN():
 
         x = self.inception_block_down(img,[32,32,16,8],[3,5,7], 2)
         x = self.inception_block_down(x,[32,32,16,8],[3,5,7], 2)
-        x = self.inception_block_down(x,[64,64,20,8],[3,5,7], 2)
-        x = self.inception_block_down(x,[64,64,20,20],[3,5,5], 2)
-        x = self.inception_block_down(x,[80,80,50,50],[3,3,5], 2)
-        x = self.inception_block_down(x,[120,100,80,60,60,40,20,20],[3,3,3,3,3,3,3], 2)
-
-        # x = Conv2D(1024, kernel_size=2, strides=1)(x)
-        # x = BatchNormalization(momentum=0.8)(x)
-        # x = LeakyReLU(alpha=0.2)(x)
+        x = self.inception_block_down(x,[64,64,32,8],[3,5,7], 2)
+        x = self.inception_block_down(x,[64,64,64,32],[3,3,5], 2)
+        x = self.inception_block_down(x,[128]*4,[3]*3, 2)
+        x = self.first_inception_block_down(x,[64]*8,[3]*8, 1)
         x = AveragePooling2D()(x)
         x = Flatten()(x)
         validity = Dense(1, activation='sigmoid')(x)
