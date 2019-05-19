@@ -1,6 +1,5 @@
 from __future__ import print_function, division
 
-from keras.datasets import mnist
 from keras.layers import Input, Dense, Reshape, Flatten, Dropout
 from keras.layers import BatchNormalization, Activation, ZeroPadding2D, MaxPooling2D, AveragePooling2D
 from keras.layers import Concatenate
