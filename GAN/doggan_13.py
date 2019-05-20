@@ -35,13 +35,13 @@ class DCGAN():
         self.img_cols = 127
         self.channels = 3
         self.img_shape = (self.img_rows, self.img_cols, self.channels)
-        self.latent_dim = 128
+        self.latent_dim = 512
 
         # Bug fixed: if the generator and the discriminator have the same
         # optimizers it doesn't converge.
         # optimizer_d = Adam(0.0002, 0.5)
         # optimizer_c = Adam(0.001, 0.5)
-        optimizer = Adam(1e-4,0.,0.99,1e-8)
+        optimizer = Adam(5e-5,0.2,0.99,1e-8)
 
         # Build and compile the discriminator
         self.discriminator = self.build_discriminator()
@@ -170,8 +170,8 @@ class DCGAN():
 
         x = self.inception_block_down(img,[32,32,16,8],[3,5,7], 2)
         x = self.inception_block_down(x,[32,32,16,8],[3,5,7], 2)
-        x = self.inception_block_down(x,[64,64,32,16],[3,5,7], 2)
-        x = self.inception_block_down(x,[64,64,64,32],[3,3,5], 2)
+        x = self.inception_block_down(x,[64,64,32,32],[3,5,5], 2)
+        x = self.inception_block_down(x,[64,64,64,64],[3,3,3], 2)
         x = self.inception_block_down(x,[128]*4,[3]*3, 2)
         x = self.first_inception_block_down(x,[128]*4,[3]*4, 1)
         x = AveragePooling2D()(x)
@@ -242,18 +242,23 @@ class DCGAN():
             #  Train Discriminator
             # ---------------------
 
-            # Select a random half of images
-            idx = np.random.randint(0, X_train.shape[0], batch_size)
-            imgs = X_train[idx]
+            if epoch>3000:
+                max_it = 3
+            else:
+                max_it = 1
+            for _ in range(max_it):
+                # Select a random half of images
+                idx = np.random.randint(0, X_train.shape[0], batch_size)
+                imgs = X_train[idx]
 
-            # Sample noise and generate a batch of new images
-            noise = np.random.normal(0, 1, (batch_size, self.latent_dim))
-            gen_imgs = self.generator.predict(noise)
+                # Sample noise and generate a batch of new images
+                noise = np.random.normal(0, 1, (batch_size, self.latent_dim))
+                gen_imgs = self.generator.predict(noise)
 
-            # Train the discriminator (real classified as ones and generated as zeros)
-            d_loss_real = self.discriminator.train_on_batch(imgs, valid)
-            d_loss_fake = self.discriminator.train_on_batch(gen_imgs, fake)
-            d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
+                # Train the discriminator (real classified as ones and generated as zeros)
+                d_loss_real = self.discriminator.train_on_batch(imgs, valid)
+                d_loss_fake = self.discriminator.train_on_batch(gen_imgs, fake)
+                d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
 
             # ---------------------
             #  Train Generator
@@ -300,4 +305,4 @@ class DCGAN():
 
 if __name__ == '__main__':
     dcgan = DCGAN()
-    dcgan.train(epochs=30000, batch_size=4, save_interval=200)
+    dcgan.train(epochs=40000, batch_size=4, save_interval=200)
