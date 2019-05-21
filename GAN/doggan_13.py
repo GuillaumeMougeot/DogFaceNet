@@ -29,7 +29,7 @@ TEST_SPLIT = 0.1
 
 
 class DCGAN():
-    def __init__(self):
+    def __init__(self, use_saved=False, filenames=None, is_eval=False):
         # Input shape
         self.img_rows = 127
         self.img_cols = 127
@@ -43,29 +43,39 @@ class DCGAN():
         # optimizer_c = Adam(0.001, 0.5)
         optimizer = Adam(5e-5,0.2,0.99,1e-8)
 
-        # Build and compile the discriminator
-        self.discriminator = self.build_discriminator()
-        self.discriminator.compile(loss='binary_crossentropy',
-            optimizer=optimizer,
-            metrics=['accuracy'])
+        if is_eval==False:
+            # Build and compile the discriminator
+            self.discriminator = self.build_discriminator()
+
+            if use_saved:
+                assert filenames!=None, "[Error] A file name has to be defined to load a model."
+                self.discriminator.load_weights(filenames[0])
+
+            self.discriminator.compile(loss='binary_crossentropy',
+                optimizer=optimizer,
+                metrics=['accuracy'])
 
         # Build the generator
         self.generator = self.build_generator()
+        if use_saved:
+            self.generator.load_weights(filenames[1])
 
         # The generator takes noise as input and generates imgs
         z = Input(shape=(self.latent_dim,))
         img = self.generator(z)
 
-        # For the combined model we will only train the generator
-        self.discriminator.trainable = False
+        if is_eval==False:
+            # For the combined model we will only train the generator
+            self.discriminator.trainable = False
 
-        # The discriminator takes generated images as input and determines validity
-        valid = self.discriminator(img)
+            # The discriminator takes generated images as input and determines validity
+            valid = self.discriminator(img)
 
-        # The combined model  (stacked generator and discriminator)
-        # Trains the generator to fool the discriminator
-        self.combined = Model(z, valid)
-        self.combined.compile(loss='binary_crossentropy', optimizer=optimizer)
+            # The combined model  (stacked generator and discriminator)
+            # Trains the generator to fool the discriminator
+        
+            self.combined = Model(z, valid)
+            self.combined.compile(loss='binary_crossentropy', optimizer=optimizer)
 
     def inception_block_down(self, inputs, output_filters=[64,64,64,64], kernels=[3,5,7], strides=1):
         assert len(kernels)==len(output_filters)-1, "[Error] Not the appropriate number of filters."
@@ -204,7 +214,7 @@ class DCGAN():
 
         # return Model(img, validity)
 
-    def train(self, epochs, batch_size=128, save_interval=50):
+    def train(self, epochs, batch_size=128, save_interval=50, epoch_start=0):
 
         # Load the dataset
         # (X_train, _), (_, _) = mnist.load_data()
@@ -228,7 +238,7 @@ class DCGAN():
         for i,f in tqdm(enumerate(filenames)):
             if i == max_size:
                 break
-            X_train[i] = sk.io.imread(f)/ 127. - 1.
+            X_train[i] = (sk.io.imread(f)-127.5)/255.
         print("done")
 
 
@@ -236,16 +246,24 @@ class DCGAN():
         valid = np.ones((batch_size, 1))
         fake = np.zeros((batch_size, 1))
 
-        for epoch in range(epochs):
+        d_loss = [100,0]
+        g_loss = 4.
+
+        for epoch in range(epoch_start, epochs):
 
             # ---------------------
             #  Train Discriminator
             # ---------------------
 
-            if epoch>3000:
+            if g_loss > 2 or 100*d_loss[1]>90:
+                max_it = 1
+            elif g_loss < 2 and 100*d_loss[1]>70:
+                max_it = 2
+            elif g_loss < 2 and 100*d_loss[1]>50:
                 max_it = 3
             else:
-                max_it = 1
+                max_it = 4
+
             for _ in range(max_it):
                 # Select a random half of images
                 idx = np.random.randint(0, X_train.shape[0], batch_size)
@@ -264,32 +282,52 @@ class DCGAN():
             #  Train Generator
             # ---------------------
 
+            if g_loss < 0.7:
+                max_it = 1
+            elif g_loss < 1.:
+                max_it = 2
+            elif g_loss < 1.5:
+                max_it = 3
+            else:
+                max_it = 6
             # Train the generator (wants discriminator to mistake images as real)
-            g_loss = self.combined.train_on_batch(noise, valid)
+            for _ in range(max_it):
+                g_loss = self.combined.train_on_batch(noise, valid)
+                noise = np.random.normal(0, 1, (batch_size, self.latent_dim))
+
 
             # Plot the progress
             # print ("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (epoch, d_loss[0], 100*d_loss[1], g_loss))
 
+            if (epoch+1) % save_interval == 0 or epoch % save_interval == 0:
+                # Save the training data to compare
+                r, c = 1, len(imgs)
+                fig, axs = plt.subplots(r, c)
+                for i in range(c):
+                    axs[i].imshow(imgs[i])
+                    axs[i].axis('off')
+                fig.savefig(PATH_SAVE+"train_data"+"_%d.png" % epoch)
+                plt.close()
+
             # If at save interval => save generated image samples
             if epoch % save_interval == 0:
-                self.save_imgs(epoch)
-
-                
-
+                self.save_imgs(epoch,"dogs")
                 # Plot the progress
                 print ("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (epoch, d_loss[0], 100*d_loss[1], g_loss))
 
-            if epoch>=2000 and epoch%400==0:
-                self.combined.save(PATH_MODEL+'2019.05.19.doggan_13_combined.'+str(epoch)+'.h5')
-                self.discriminator.save(PATH_MODEL+'2019.05.19.doggan_13_discriminator.'+str(epoch)+'.h5')
+            if epoch>=2000 and epoch%(4*save_interval)==0:
+                self.generator.save_weights(PATH_MODEL+'2019.05.20.doggan_13_generator.'+str(epoch)+'.h5')
+                self.discriminator.save_weights(PATH_MODEL+'2019.05.20.doggan_13_discriminator.'+str(epoch)+'.h5')
+                # self.combined.save(PATH_MODEL+'2019.05.19.doggan_13_combined.'+str(epoch)+'.h5')
+                # self.discriminator.save(PATH_MODEL+'2019.05.19.doggan_13_discriminator.'+str(epoch)+'.h5')
 
-    def save_imgs(self, epoch):
+    def save_imgs(self, epoch, name='mnist'):
         r, c = 5, 5
         noise = np.random.normal(0, 1, (r * c, self.latent_dim))
         gen_imgs = self.generator.predict(noise)
 
         # Rescale images 0 - 1
-        gen_imgs = 0.5 * gen_imgs + 0.5
+        # gen_imgs = 0.5 * gen_imgs + 0.5
 
         fig, axs = plt.subplots(r, c)
         cnt = 0
@@ -299,10 +337,46 @@ class DCGAN():
                 axs[i,j].imshow(gen_imgs[cnt, :,:,:])
                 axs[i,j].axis('off')
                 cnt += 1
-        fig.savefig(PATH_SAVE+"mnist_%d.png" % epoch)
+        fig.savefig(PATH_SAVE+name+"_%d.png" % epoch)
+        plt.close()
+
+    def eval(self, filename):
+        r, c = 4, 4
+        noise = np.random.normal(0, 1, (r * c, self.latent_dim))
+        # inputs = np.zeros((r * c, self.latent_dim))
+        # for i in range(r*c):
+        #     inputs[i][i*32-1]=1
+        
+        gen_imgs = self.generator.predict(np.array(noise))
+        # m = 0
+        # M = 0
+        # for i in range(r*c):
+        #     for j in range(self.img_cols):
+        #         for k in range(self.img_rows):
+        #             if min(gen_imgs[i,j,k,:]) < m:
+        #                 m = min(gen_imgs[i,j,k,:])
+        #             if max(gen_imgs[i,j,k,:]) > M:
+        #                 M = min(gen_imgs[i,j,k,:])
+        # print(m)
+        # print(M)
+
+        fig, axs = plt.subplots(r, c)
+        cnt = 0
+        for i in range(r):
+            for j in range(c):
+                # axs[i,j].imshow(gen_imgs[cnt, :,:,0], cmap='gray')
+                axs[i,j].imshow(gen_imgs[cnt, :,:,:])
+                axs[i,j].axis('off')
+                cnt += 1
+        fig.savefig(PATH_SAVE+filename+".png")
         plt.close()
 
 
 if __name__ == '__main__':
-    dcgan = DCGAN()
-    dcgan.train(epochs=40000, batch_size=4, save_interval=200)
+    dcgan = DCGAN(
+        use_saved=True,
+        filenames=[PATH_MODEL+'2019.05.20.doggan_13_discriminator.24400.h5', PATH_MODEL+'2019.05.20.doggan_13_generator.24400.h5'],
+        is_eval=True
+        )
+    # dcgan.train(epochs=40000, batch_size=4, save_interval=100, epoch_start=15601)
+    dcgan.eval("test")
