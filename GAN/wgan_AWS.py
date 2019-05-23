@@ -95,43 +95,43 @@ class WGAN():
 
         model.add(Reshape((1, 1, self.latent_dim)))
 
-        model.add(UpSampling2D((4,4)))
+        # model.add(UpSampling2D((4,4)))
 
         # model.add(Conv2DTranspose(128, kernel_size=4))
         # model.add(BatchNormalization(momentum=0.8))
         # model.add(Activation("relu"))
-        model.add(Conv2D(128, kernel_size=3, padding="same"))
+        model.add(Conv2DTranspose(256, kernel_size=4))
         model.add(BatchNormalization(momentum=0.8))
         model.add(Activation("relu"))
-        model.add(Conv2D(128, kernel_size=3, padding="same"))
+        model.add(Conv2D(256, kernel_size=3, padding="same"))
         model.add(BatchNormalization(momentum=0.8))
         model.add(Activation("relu"))
 
 
         model.add(UpSampling2D())
 
-        model.add(Conv2D(64, kernel_size=3, padding="same"))
+        model.add(Conv2D(128, kernel_size=3, padding="same"))
         model.add(BatchNormalization(momentum=0.8))
         model.add(Activation("relu"))
-        model.add(Conv2D(64, kernel_size=3, padding="same"))
+        model.add(Conv2D(128, kernel_size=3, padding="same"))
         model.add(BatchNormalization(momentum=0.8))
         model.add(Activation("relu"))
         
         model.add(UpSampling2D())
 
-        model.add(Conv2D(32, kernel_size=3, padding="same"))
+        model.add(Conv2D(64, kernel_size=3, padding="same"))
         model.add(BatchNormalization(momentum=0.8))
         model.add(Activation("relu"))
-        model.add(Conv2D(32, kernel_size=3, padding="same"))
+        model.add(Conv2D(64, kernel_size=3, padding="same"))
         model.add(BatchNormalization(momentum=0.8))
         model.add(Activation("relu"))
 
         model.add(UpSampling2D())
 
-        model.add(Conv2D(16, kernel_size=3, padding="same"))
+        model.add(Conv2D(32, kernel_size=3, padding="same"))
         model.add(BatchNormalization(momentum=0.8))
         model.add(Activation("relu"))
-        model.add(Conv2D(16, kernel_size=3, padding="same"))
+        model.add(Conv2D(32, kernel_size=3, padding="same"))
         model.add(BatchNormalization(momentum=0.8))
         model.add(Activation("relu"))
 
@@ -149,18 +149,9 @@ class WGAN():
 
         model = Sequential()
 
-        model.add(Conv2D(16, kernel_size=3, strides=2, input_shape=self.img_shape, padding="same"))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(Conv2D(32, kernel_size=3, strides=1, padding="same"))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(Dropout(0.25))
-
-
-        model.add(Conv2D(32, kernel_size=3, strides=2, padding="same"))
-        model.add(BatchNormalization(momentum=0.8))
+        model.add(Conv2D(32, kernel_size=3, strides=2, input_shape=self.img_shape, padding="same"))
         model.add(LeakyReLU(alpha=0.2))
         model.add(Conv2D(64, kernel_size=3, strides=1, padding="same"))
-        model.add(BatchNormalization(momentum=0.8))
         model.add(LeakyReLU(alpha=0.2))
         model.add(Dropout(0.25))
 
@@ -173,7 +164,16 @@ class WGAN():
         model.add(LeakyReLU(alpha=0.2))
         model.add(Dropout(0.25))
 
-        model.add(Conv2D(128, kernel_size=4, strides=1, padding="same"))
+
+        model.add(Conv2D(128, kernel_size=3, strides=2, padding="same"))
+        model.add(BatchNormalization(momentum=0.8))
+        model.add(LeakyReLU(alpha=0.2))
+        model.add(Conv2D(256, kernel_size=3, strides=1, padding="same"))
+        model.add(BatchNormalization(momentum=0.8))
+        model.add(LeakyReLU(alpha=0.2))
+        model.add(Dropout(0.25))
+
+        model.add(Conv2D(256, kernel_size=4, strides=1, padding="same"))
         model.add(BatchNormalization(momentum=0.8))
         model.add(LeakyReLU(alpha=0.2))
         model.add(Dropout(0.25))
