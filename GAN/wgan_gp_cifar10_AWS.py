@@ -20,7 +20,7 @@ import sys
 import numpy as np
 
 PATH_SAVE = '../output/images/wgan_gp/mnist/'
-PATH_MODEL = '../output/model/gan/'
+# PATH_MODEL = '../output/model/gan/'
 
 BATCH = 64
 
@@ -435,9 +435,9 @@ class WGANGP():
             # If at save interval => save generated image samples
             if epoch % sample_interval == 0:
                 self.sample_images(epoch)
-            if epoch > 2000 and epoch % (sample_interval*4) == 0:
-                self.generator.save_weights(PATH_MODEL+'wgan_gp_cifar10.gen.'+str(epoch)+'.h5')
-                self.critic.save_weights(PATH_MODEL+'wgan_gp_cifar10.cri.'+str(epoch)+'.h5')
+            # if epoch > 2000 and epoch % (sample_interval*4) == 0:
+            #     self.generator.save_weights(PATH_MODEL+'wgan_gp_cifar10.gen.'+str(epoch)+'.h5')
+            #     self.critic.save_weights(PATH_MODEL+'wgan_gp_cifar10.cri.'+str(epoch)+'.h5')
 
     def sample_images(self, epoch):
         r, c = 5, 5
@@ -460,4 +460,4 @@ class WGANGP():
 
 if __name__ == '__main__':
     wgan = WGANGP()
-    wgan.train(epochs=30000, batch_size=BATCH, sample_interval=100)
+    wgan.train(epochs=30000, batch_size=BATCH, sample_interval=1000)
