@@ -155,17 +155,17 @@ class DCGAN():
 
         x = Reshape((1,1,self.latent_dim))(noise)
         
-        x = self.first_inception_block_up(x, [64,64,32,16], [3,3,5,7], 2)
+        x = self.first_inception_block_up(x, [128,128,64,32], [3,3,5,7], 2)
         x = self.inception_block_down(x, [64,64,32,16], [3,5,7], 1)
 
-        x = self.first_inception_block_up(x, [64,64,32,16],[3,3,5,7], 2)
+        x = self.first_inception_block_up(x, [96,96,50,16],[3,3,5,7], 2)
         x = self.inception_block_down(x, [64,64,64,32],[3,3,5], 1)
 
-        x = self.inception_block_up(x, [64,64,32,16],[3,5,7], 2)
-        x = self.inception_block_down(x, [64,64,64,32],[3,3,5], 1)
+        x = self.inception_block_up(x, [64,64,64,30],[3,3,5], 2)
+        x = self.inception_block_down(x, [32,32,32,16],[3,3,5], 1)
 
-        x = self.inception_block_up(x, [64,64,32,16],[3,5,7], 2)
-        x = self.inception_block_down(x, [64,64,64,32],[3,3,5], 1)
+        x = self.inception_block_up(x, [16,16,16,16],[3,3,3], 2)
+        x = self.inception_block_down(x, [16,16,16,16],[3,3,3], 1)
 
         x = Conv2D(self.channels,(3,3),padding='same')(x)
         img = Activation('tanh')(x)
@@ -180,10 +180,10 @@ class DCGAN():
 
         img = Input(shape=self.img_shape)
 
-        x = self.inception_block_down(img,[64,64,32,16],[3,5,7], 2)
+        x = self.inception_block_down(img,[32,32,16,8],[3,5,7], 2)
         x = self.inception_block_down(x,[64,64,32,16],[3,5,7], 2)
-        x = self.first_inception_block_down(x,[64,64,64,64],[3,3,3,3], 2)
-        x = self.first_inception_block_down(x,[64,64,64,64],[3,3,3,3], 1)
+        x = self.first_inception_block_down(x,[64,96,128,96],[3,3,3,3], 2)
+        x = self.first_inception_block_down(x,[128,128,128,128],[3,3,3,3], 1)
         # x = AveragePooling2D()(x)
         x = Flatten()(x)
         validity = Dense(1, activation='sigmoid')(x)

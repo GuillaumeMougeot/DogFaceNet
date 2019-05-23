@@ -132,17 +132,17 @@ class DCGAN():
 
         x = Reshape((1,1,self.latent_dim))(noise)
 
-        x = self.first_inception_block_up(x, 256, 1, [3,3,5,7])
-        x = self.inception_block_down(x, 256, 1, [3,3,3])
+        x = self.first_inception_block_up(x, 32, 1, [3,3,5,7])
+        x = self.inception_block_down(x, 32, 1, [3,3,3])
 
-        x = self.first_inception_block_up(x, 256, 2, [3,3,3,3])
-        x = self.inception_block_down(x, 256, 1, [3,3,3])
+        x = self.first_inception_block_up(x, 64, 2, [3,3,3,3])
+        x = self.inception_block_down(x, 64, 1, [3,3,3])
 
-        x = self.inception_block_up(x, 512, 2, [3,3,3])
-        x = self.inception_block_down(x, 512, 1, [3,3,3])
+        x = self.inception_block_up(x, 96, 2, [3,3,3])
+        x = self.inception_block_down(x, 96, 1, [3,3,3])
 
-        x = self.inception_block_up(x, 128, 2)
-        x = self.inception_block_down(x, 128, 1)
+        x = self.inception_block_up(x, 32, 2)
+        x = self.inception_block_down(x, 32, 1)
 
         x = Conv2D(self.channels,(3,3),padding='same')(x)
         img = Activation('tanh')(x)
@@ -157,10 +157,10 @@ class DCGAN():
 
         img = Input(shape=self.img_shape)
 
-        x = self.inception_block_down(img, 64, 2)
-        x = self.inception_block_down(x, 128, 2)
-        x = self.inception_block_down(x, 256, 2)
-        x = self.inception_block_down(x, 512, 2)
+        x = self.inception_block_down(img, 32, 2)
+        x = self.inception_block_down(x, 48, 2)
+        x = self.inception_block_down(x, 64, 2)
+        x = self.inception_block_down(x, 96, 2)
 
         # x = Conv2D(1024, kernel_size=2, strides=1)(x)
         # x = BatchNormalization(momentum=0.8)(x)
@@ -265,4 +265,4 @@ class DCGAN():
 
 if __name__ == '__main__':
     dcgan = DCGAN()
-    dcgan.train(epochs=20000, batch_size=32, save_interval=200)
+    dcgan.train(epochs=20000, batch_size=64, save_interval=200)
