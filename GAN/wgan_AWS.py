@@ -261,10 +261,10 @@ class WGAN():
                 axs[i,j].imshow(gen_imgs[cnt, :,:,:])
                 axs[i,j].axis('off')
                 cnt += 1
-        fig.savefig("../output/images/wgan/cifar10/cifar10_%d.png" % epoch)
+        fig.savefig(PATH_SAVE+"cifar10_%d.png" % epoch)
         plt.close()
 
 
 if __name__ == '__main__':
-    wgan = WGAN(used_save=True,filenames=[PATH_MODEL+'wgan_gp_cifar10.cri.'+str(7800)+'.h5', PATH_MODEL+'wgan_gp_cifar10.gen.'+str(7800)+'.h5'])
-    wgan.train(epochs=20001, batch_size=64, sample_interval=50, start_epoch=8000)
+    wgan = WGAN(used_save=False,filenames=[PATH_MODEL+'wgan_gp_cifar10.cri.'+str(7800)+'.h5', PATH_MODEL+'wgan_gp_cifar10.gen.'+str(7800)+'.h5'])
+    wgan.train(epochs=40001, batch_size=128, sample_interval=200, start_epoch=0)
