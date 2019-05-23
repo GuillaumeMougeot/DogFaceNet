@@ -19,7 +19,7 @@ import sys
 
 import numpy as np
 
-PATH_SAVE = '../output/images/wgan_gp/mnist/'
+PATH_SAVE = '../output/images_AWS/'
 # PATH_MODEL = '../output/model/gan/'
 
 BATCH = 64
