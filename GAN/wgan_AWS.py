@@ -31,6 +31,7 @@ class WGAN():
         # Following parameter and optimizer set as recommended in paper
         self.n_critic = 5
         self.clip_value = 1.0
+
         optimizer = RMSprop(lr=0.00005)
 
         # Build and compile the critic
