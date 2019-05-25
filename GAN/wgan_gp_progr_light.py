@@ -33,68 +33,33 @@ class WGAN():
 
         # Following parameter and optimizer set as recommended in paper
         self.n_critic = 5
-        optimizer = RMSprop(lr=0.00005)
+        self.clip_value = 0.02
+        self.optimizer = RMSprop(lr=0.00005)
 
-        # Build the generator and critic
-        self.generator = self.build_generator()
+        # Build and compile the critic
         self.critic = self.build_critic()
+        self.critic.compile(loss=self.wasserstein_loss,
+            optimizer=self.optimizer,
+            metrics=['accuracy'])
 
-        #-------------------------------
-        # Construct Computational Graph
-        #       for the Critic
-        #-------------------------------
+        # Build the generator
+        self.generator = self.build_generator()
 
-        # Freeze generator's layers while training critic
-        self.generator.trainable = False
+        # The generator takes noise as input and generated imgs
+        z = Input(shape=(self.latent_dim,))
+        img = self.generator(z)
 
-        # Image input (real sample)
-        real_img = Input(shape=self.img_shape)
-
-        # Noise input
-        z_disc = Input(shape=(self.latent_dim,))
-        # Generate image based of noise (fake sample)
-        fake_img = self.generator(z_disc)
-
-        # Discriminator determines validity of the real and fake images
-        fake = self.critic(fake_img)
-        valid = self.critic(real_img)
-
-        # Construct weighted average between real and fake images
-        interpolated_img = Lambda(self.merge)([real_img, fake_img])
-        # Determine validity of weighted sample
-        validity_interpolated = self.critic(interpolated_img)
-
-        # Use Python partial to provide loss function with additional
-        # 'averaged_samples' argument
-        partial_gp_loss = partial(self.gradient_penalty_loss,
-                          averaged_samples=interpolated_img)
-        partial_gp_loss.__name__ = 'gradient_penalty' # Keras requires function names
-
-        self.critic_model = Model(inputs=[real_img, z_disc],
-                            outputs=[valid, fake, validity_interpolated])
-        self.critic_model.compile(loss=[self.wasserstein_loss,
-                                              self.wasserstein_loss,
-                                              partial_gp_loss],
-                                        optimizer=optimizer,
-                                        loss_weights=[1, 1, 10])
-        #-------------------------------
-        # Construct Computational Graph
-        #         for Generator
-        #-------------------------------
-
-        # For the generator we freeze the critic's layers
+        # For the combined model we will only train the generator
         self.critic.trainable = False
-        self.generator.trainable = True
 
-        # Sampled noise for input to generator
-        z_gen = Input(shape=(self.latent_dim,))
-        # Generate images based of noise
-        img = self.generator(z_gen)
-        # Discriminator determines validity
+        # The critic takes generated images as input and determines validity
         valid = self.critic(img)
-        # Defines generator model
-        self.generator_model = Model(z_gen, valid)
-        self.generator_model.compile(loss=self.wasserstein_loss, optimizer=optimizer)
+
+        # The combined model  (stacked generator and critic)
+        self.combined = Model(z, valid)
+        self.combined.compile(loss=self.wasserstein_loss,
+            optimizer=self.optimizer,
+            metrics=['accuracy'])
 
     def rebuild(self):
         # Increase depth of the network
@@ -224,7 +189,7 @@ class WGAN():
             filters = filters // 2
 
         model.add(Conv2D(self.channels, kernel_size=1, padding="same"))
-        model.add(Activation("tanh"))
+        model.add(Activation("linear"))
 
         # noise = Input(shape=(self.latent_dim,))
         # img = model(noise)
@@ -246,7 +211,7 @@ class WGAN():
             model.add(BatchNormalization(momentum=0.8))
             model.add(LeakyReLU(alpha=0.2))
         model.add(Conv2D(self.channels, kernel_size=1, padding="same"))
-        model.add(Activation("tanh"))
+        model.add(Activation("linear"))
 
         model.summary()
 
@@ -318,8 +283,8 @@ class WGAN():
         shape_out = (h//ratio,w//ratio,c)
         data_out = np.empty((l,h//ratio,w//ratio,c))
         print("Resizing dataset...")
-        for i in range(len(data_out)):
-        # for i in range(4):
+        # for i in range(len(data_out)):
+        for i in range(4):
             data_out[i] = sk.transform.resize(data[i],shape_out)
         print("Done!")
         return data_out
@@ -330,7 +295,12 @@ class WGAN():
         valid = -np.ones((self.batch_size, 1))
         fake =  np.ones((self.batch_size, 1))
         dummy = np.zeros((self.batch_size, 1)) # Dummy gt for gradient penalty
-        for epoch in range(epochs):
+
+        partial_gp_loss = partial(self.gradient_penalty_loss,
+                          averaged_samples=interpolated_img)
+        partial_gp_loss.__name__ = 'gradient_penalty' # Keras requires function names
+
+        for epoch in range(start_epoch, epochs):
 
             for _ in range(self.n_critic):
 
@@ -339,23 +309,47 @@ class WGAN():
                 # ---------------------
 
                 # Select a random batch of images
-                idx = np.random.randint(0, X_train.shape[0], self.batch_size)
+                idx = np.random.randint(0, X_train.shape[0], batch_size)
                 imgs = X_train[idx]
-                # Sample generator input
-                noise = np.random.normal(0, 1, (self.batch_size, self.latent_dim))
+                
+                # Sample noise as generator input
+                noise = np.random.normal(0, 1, (batch_size, self.latent_dim))
+
+                # Generate a batch of new images
+                gen_imgs = self.generator.predict(noise)
+
+                interpolated_img = Lambda(self.merge)([imgs, gen_imgs])
+                # Determine validity of weighted sample
+                validity_interpolated = self.critic.predict(interpolated_img)
+
                 # Train the critic
-                d_loss = self.critic_model.train_on_batch([imgs, noise],
-                                                                [valid, fake, dummy])
+                d_loss_real = self.critic.train_on_batch(imgs, valid)
+                d_loss_fake = self.critic.train_on_batch(gen_imgs, fake)
+                self.critic.compile(loss=partial_gp_loss,
+                                optimizer=self.optimizer,
+                                loss_weights=10,
+                                metrics=['accuracy'])
+                d_loss_dummy = self.critic.train_on_batch(gen_imgs, fake)
+                d_loss = 0.5 * np.add(d_loss_fake, d_loss_real)
+
+                # Clip critic weights
+                clip_ratio = self.clip_value
+                for l in self.critic.layers:
+                    weights = l.get_weights()
+                    if len(weights)>0:
+                        weights = [np.clip(w, -clip_ratio, clip_ratio) for w in weights]
+                        l.set_weights(weights)
+                        # clip_ratio /= 1.5
+
 
             # ---------------------
             #  Train Generator
             # ---------------------
 
-            g_loss = self.generator_model.train_on_batch(noise, valid)
+            g_loss = self.combined.train_on_batch(noise, valid)
 
             # Plot the progress
-            print ("%d [D loss: %f] [G loss: %f]" % (epoch, d_loss[0], g_loss))
-
+            print ("%d [D loss: %f] [G loss: %f]" % (epoch, 1 - d_loss[0], 1 - g_loss[0]))
             # If at save interval => save generated image samples
             if epoch % sample_interval == 0:
                 self.sample_images(epoch)
@@ -419,4 +413,4 @@ class WGAN():
 
 if __name__ == '__main__':
     wgan = WGAN()
-    wgan.train(epochs=100000, sample_interval=400, model_update=10000)
+    wgan.train(epochs=8, sample_interval=50, model_update=5)
