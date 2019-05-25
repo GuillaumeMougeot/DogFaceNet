@@ -21,8 +21,8 @@ PATH_SAVE = '../output/images_AWS/'
 PATH_MODEL = '../output/model/gan/wgan/'
 
 class WGAN():
-    def __init__(self):
-        self.depth = 0
+    def __init__(self, init_depth=0, filenames=None):
+        self.depth = init_depth
         self.batch_size = 64
         self.img_rows = 2**(self.depth+2)
         self.img_cols = 2**(self.depth+2)
@@ -38,6 +38,9 @@ class WGAN():
         # Build the generator and critic
         self.generator = self.build_generator()
         self.critic = self.build_critic()
+        if filenames!=None:
+            self.generator.load_weights(filenames[0])
+            self.critic.load_weights(filenames[1])
 
         #-------------------------------
         # Construct Computational Graph
@@ -418,5 +421,5 @@ class WGAN():
 
 
 if __name__ == '__main__':
-    wgan = WGAN()
-    wgan.train(epochs=100000, sample_interval=400, model_update=10000)
+    wgan = WGAN(init_depth=2, filenames=[PATH_MODEL+'wgan_gp_prog_cifar10.gen.25600.h5', PATH_MODEL+'wgan_gp_prog_cifar10.cri.25600.h5'])
+    wgan.train(epochs=100000, sample_interval=400, model_update=1)
