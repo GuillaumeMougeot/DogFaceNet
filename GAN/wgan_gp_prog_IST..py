@@ -384,7 +384,7 @@ class WGAN():
 
         ratio = 2**(3-self.depth)
         start_model_update=0
-        for _ in range(int(np.log2(ratio))):
+        for _ in range(int(np.log2(ratio))+1):
             data_resized = self.resize_data(X_train, ratio)
             self.train_unit(
                 data_resized,
@@ -421,5 +421,5 @@ class WGAN():
 
 
 if __name__ == '__main__':
-    wgan = WGAN(init_depth=2, filenames=[PATH_MODEL+'wgan_gp_prog_cifar10.gen.25600.h5', PATH_MODEL+'wgan_gp_prog_cifar10.cri.25600.h5'])
-    wgan.train(epochs=100000, sample_interval=400, model_update=1)
+    wgan = WGAN()
+    wgan.train(epochs=100000, sample_interval=400, model_update=10000)
