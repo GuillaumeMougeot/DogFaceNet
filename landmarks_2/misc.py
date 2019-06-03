@@ -15,6 +15,7 @@ import numpy as np
 from collections import OrderedDict 
 import scipy.ndimage
 import PIL.Image
+import skimage as sk
 
 import config
 import dataset
@@ -31,6 +32,37 @@ def load_pkl(filename):
 def save_pkl(obj, filename):
     with open(filename, 'wb') as file:
         pickle.dump(obj, file, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+#----------------------------------------------------------------------------
+# Image utils using skimage.
+
+def resize_img_coord(img, coord, output_shape):
+    # Resize an image and its landmarks
+    img_resized = sk.transform.resize(img, output_shape)
+    x_ratio = output_shape[0]/img.shape[0]
+    y_ratio = output_shape[1]/img.shape[1]
+    
+    new_coord = np.zeros(6, dtype=np.int)
+    for i in range(3):
+        new_coord[2*i] = int(coord[2*i]*x_ratio)
+        new_coord[2*i+1] = int(coord[2*i+1]*y_ratio)
+    return img_resized, new_coord
+
+def save_img_coord(images, coords, filename, num_saved_imgs=16):
+    assert (np.sqrt(num_saved_imgs)-int(np.sqrt(num_saved_imgs))!=0.0, "[{:10s}] Number of saved images should be a perfect square.".format("Error")
+    # The output image will be 1080x1080
+    output = np.zeros((1080,1080,3))
+    sqrt_num = np.sqrt(num_saved_imgs)
+    new_coords = np.copy(coords)
+    for i in range(sqrt_num):
+        for j in range(sqrt_num):
+            output[sqrt_num*i:sqrt_num*(i+1),sqrt_num*j:sqrt_num*(j+1),:], new_coords[i*sqrt_num+j] = resize(images[i*sqrt_num+j], coords[i*sqrt_num+j])
+    plt.imshow(output)
+    for i in range(sqrt_num):
+        for j in range(sqrt_num):
+            plt.plot(new_coords[i*sqrt_num+j][::2], new_coords[i*sqrt_num+j][1::2], 'o')
+    plt.savefig(filename)
 
 #----------------------------------------------------------------------------
 # Image utils.

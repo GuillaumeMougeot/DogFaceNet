@@ -7,6 +7,7 @@ import config
 import tfutil
 import dataset
 import misc
+import networks
 
 #----------------------------------------------------------------------------
 # Just-in-time processing of training images before feeding them to the networks.
@@ -16,7 +17,6 @@ def process_reals(x, drange_data, drange_net):
         with tf.name_scope('DynamicRange'):
             x = tf.cast(x, tf.float32)
             x = misc.adjust_dynamic_range(x, drange_data, drange_net)
-        
     return x
 
 #----------------------------------------------------------------------------
@@ -62,24 +62,27 @@ def train_landmark_detector(
     # Construct networks.
     with tf.device('/gpu:0'):
         print('Constructing the network...')
-        N = tfutil.Network('N', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **config.N)
-    N.print_layers()
+        # N = tfutil.Network('N', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **config.N)
+    # N.print_layers()
 
     print('Building TensorFlow graph...')
     with tf.name_scope('Inputs'):
         lrate_in        = tf.placeholder(tf.float32, name='lrate_in', shape=[])
         minibatch_in    = tf.placeholder(tf.int32, name='minibatch_in', shape=[])
         reals, labels   = training_set.get_minibatch_tf()
-    N_opt = tfutil.Optimizer(name='TrainN', learning_rate=lrate_in, **config.N_opt)
+    # N_opt = tfutil.Optimizer(name='TrainN', learning_rate=lrate_in, **config.N_opt)
+    N_opt = tf.train.AdamOptimizer()
     with tf.device('/gpu:0'):
         reals = process_reals(reals, training_set.dynamic_range, drange_net)
         labels = process_reals(labels, training_set.dynamic_range, drange_net)
         with tf.name_scope('N_loss'):
             # N_loss = tfutil.call_func_by_name(N=N, reals=reals, labels=labels, **config.N_loss)
-            predictions = N.get_output_for(reals, is_training=True)
+            # predictions = N.get_output_for(reals, is_training=True)
+            predictions = networks.dummy(reals)
             N_loss = tf.losses.mean_squared_error(labels, predictions)
-        N_opt.register_gradients(tf.reduce_mean(N_loss), N.trainables)
-    N_train_op = N_opt.apply_updates()
+        # N_opt.register_gradients(tf.reduce_mean(N_loss), N.trainables)
+    # N_train_op = N_opt.apply_updates()
+    N_train_op = N_opt.minimize(N_loss)
 
     print('Setting up result dir...')
     result_subdir = misc.create_result_subdir(config.result_dir, config.desc)
@@ -90,6 +93,8 @@ def train_landmark_detector(
         N.setup_weight_histograms()
 
     print('Training...')
+    tfutil.run(tf.global_variables_initializer())
+
     cur_nimg = 0
     cur_tick = 0
     tick_start_nimg = cur_nimg
@@ -107,11 +112,8 @@ def train_landmark_detector(
             cur_nimg += sched.minibatch
 
         # Perform maintenance tasks once per tick.
-        done = (cur_nimg >= total_kimg * 40) or (cur_nimg % 10 == 0)
+        done = (cur_nimg >= total_kimg * 1000) or (cur_nimg % 100 == 0)
         if done:
-            print(loss)
-            print(r)
-            print(l)
 
             cur_tick += 1
             cur_time = time.time()

@@ -500,7 +500,7 @@ class Network:
 
     # Get TensorFlow expression(s) for the output(s) of this network, given the inputs.
     def get_output_for(self, *in_expr, return_as_list=False, **dynamic_kwargs):
-        assert len(in_expr) == self.num_inputs
+        assert len(in_expr) == self.num_inputs, "len(in_expr) = {:d}, self.num_inputs = {:d}".format(len(in_expr), self.num_inputs)
         all_kwargs = dict(self.static_kwargs)
         all_kwargs.update(dynamic_kwargs)
         with tf.variable_scope(self.scope, reuse=True):
