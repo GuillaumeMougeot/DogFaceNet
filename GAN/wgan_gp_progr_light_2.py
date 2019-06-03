@@ -10,6 +10,7 @@ from keras.optimizers import RMSprop
 from functools import partial
 
 import keras.backend as K
+import tensorflow as tf
 
 import matplotlib.pyplot as plt
 import skimage as sk
@@ -42,22 +43,22 @@ class WGAN():
             optimizer=self.optimizer,
             metrics=['accuracy'])
 
-        real_img = Input(shape=self.img_shape)
+        # real_img = Input(shape=self.img_shape)
 
-        fake_img = Input(shape=self.img_shape)
+        # fake_img = Input(shape=self.img_shape)
 
         # Construct weighted average between real and fake images
-        interpolated_img = Lambda(self.merge)([real_img, fake_img])
+        # self.interpolated_img = Lambda(self.merge)([real_img, fake_img])
         # Determine validity of weighted sample
-        validity_interpolated = self.critic(interpolated_img)
+        # validity_interpolated = self.critic(self.interpolated_img)
 
-        partial_gp_loss = partial(self.gradient_penalty_loss,
-                          averaged_samples=interpolated_img)
-        partial_gp_loss.__name__ = 'gradient_penalty' # Keras requires function names
+        # partial_gp_loss = partial(self.gradient_penalty_loss,
+        #                   averaged_samples=interpolated_img)
+        # partial_gp_loss.__name__ = 'gradient_penalty' # Keras requires function names
 
-        self.critic_gp = Model([real_img, fake_img],validity_interpolated)
-        self.critic_gp.compile(loss=partial_gp_loss,
-                                        optimizer=self.optimizer)
+        # self.critic_gp = Model([real_img, fake_img],validity_interpolated)
+        # self.critic_gp.compile(loss=self.gradient_penalty_loss,
+        #                                 optimizer=self.optimizer)
                                         # loss_weights=10)
 
         # Build the generator
@@ -146,9 +147,9 @@ class WGAN():
         valid = self.critic(real_img)
 
         # Construct weighted average between real and fake images
-        interpolated_img = Lambda(self.merge)([real_img, fake_img])
+        self.interpolated_img = Lambda(self.merge)([real_img, fake_img])
         # Determine validity of weighted sample
-        validity_interpolated = self.critic(interpolated_img)
+        validity_interpolated = self.critic(self.interpolated_img)
 
         # Use Python partial to provide loss function with additional
         # 'averaged_samples' argument
@@ -182,11 +183,11 @@ class WGAN():
         self.generator_model = Model(z_gen, valid)
         self.generator_model.compile(loss=self.wasserstein_loss, optimizer=optimizer)
 
-    def gradient_penalty_loss(self, y_true, y_pred, averaged_samples):
+    def gradient_penalty_loss(self, y_true, y_pred):
         """
         Computes gradient penalty based on prediction and weighted real / fake samples
         """
-        gradients = K.gradients(y_pred, averaged_samples)[0]
+        gradients = K.gradients(y_pred, self.interpolated_img)[0]
         # compute the euclidean norm by squaring ...
         gradients_sqr = K.square(gradients)
         #   ... summing over the rows ...
@@ -201,6 +202,10 @@ class WGAN():
 
     def merge(self, inputs):
         alpha = K.random_uniform((self.batch_size, 1, 1, 1))
+        return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
+
+    def np_merge(self, inputs):
+        alpha = np.random.random((self.batch_size, 1, 1, 1))
         return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
 
     def wasserstein_loss(self, y_true, y_pred):
@@ -360,12 +365,42 @@ class WGAN():
 
                 # Generate a batch of new images
                 gen_imgs = self.generator.predict(noise)
+                
 
                 # Train the critic
+                self.critic.compile(loss=self.wasserstein_loss,
+                    optimizer=self.optimizer,
+                    metrics=['accuracy'])
+
+
                 d_loss_real = self.critic.train_on_batch(imgs, valid)
                 d_loss_fake = self.critic.train_on_batch(gen_imgs, fake)
-                d_loss_dummy = self.critic_gp.train_on_batch([imgs, gen_imgs], dummy)
+
+
+                # print(self.critic.predict(self.np_merge([imgs,gen_imgs])))
+                self.interpolated_img = self.np_merge([tf.constant(imgs),tf.constant(gen_imgs)])
+                # self.interpolated_img = self.merge([tf.constant(imgs), tf.constant(gen_imgs)])
+                # with tf.Session() as sess:
+                #     print(sess.run(self.critic(self.interpolated_img)))
+                y_pred = self.critic(self.interpolated_img)
+                gradients = K.gradients(y_pred, self.interpolated_img)
+                # compute the euclidean norm by squaring ...
+                # gradients_sqr = K.square(gradients)
+                val_init = tf.global_variables_initializer()
+                with tf.Session() as sess:
+                    sess.run(val_init)
+                    print(sess.run(y_pred))
+                    print(sess.run(gradients))
+
+                self.critic.compile(loss=self.gradient_penalty_loss,
+                                                optimizer=self.optimizer)
+
+
+
+                d_loss_dummy = self.critic.train_on_batch(self.interpolated_img, dummy)
+
                 d_loss = np.add(np.add(d_loss_fake, d_loss_real), d_loss_dummy)/3
+                # d_loss = np.add(d_loss_fake, d_loss_real)/2
 
                 # # Select a random batch of images
                 # idx = np.random.randint(0, X_train.shape[0], self.batch_size)
@@ -380,10 +415,10 @@ class WGAN():
             #  Train Generator
             # ---------------------
 
-            g_loss = self.generator_model.train_on_batch(noise, valid)
+            g_loss = self.combined.train_on_batch(noise, valid)
 
             # Plot the progress
-            print ("%d [D loss: %f] [G loss: %f]" % (epoch, d_loss[0], g_loss))
+            print ("%d [D loss: %f] [G loss: %f]" % (epoch, 1 - d_loss[0], 1 - g_loss[0]))
 
             # If at save interval => save generated image samples
             if epoch % sample_interval == 0:
