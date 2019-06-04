@@ -16,6 +16,7 @@ from collections import OrderedDict
 import scipy.ndimage
 import PIL.Image
 import skimage as sk
+import matplotlib.pyplot as plt
 
 import config
 import dataset
@@ -35,7 +36,40 @@ def save_pkl(obj, filename):
 
 
 #----------------------------------------------------------------------------
-# Image utils using skimage.
+# Image utils for landmark dataset definition and saving.
+
+def clipping_img_coord(img, coord):
+    # Clips an image to a square and pays attention to let the landmarks inside the picture
+    h, w, _ = img.shape
+    if h < w:
+        bound_min = min(coord[::2])
+        bound_max = max(coord[::2])
+        if bound_max - bound_min > h:
+            print("Shit happens sometimes... {:d} {:d} {:d}".format(bound_max, bound_min, h))
+        clip = w - h
+        d = bound_min
+        D = w - bound_max
+        left = int(d*clip/(d+D))
+        right = bound_max + D - int(D*clip/(d+D))
+        
+        coord_add = np.copy(coord)
+        coord_add[::2] -= left
+        return img[:,left:right,:], np.array(coord_add)
+    elif h > w:
+        new_coord = []
+        for i in range(3):
+            new_coord += [coord[2*i+1]] + [coord[2*i]]
+            
+        img_T = np.transpose(img, axes=(1,0,2))
+        img_clipped, coord_add = clipping_img_coord(img_T, new_coord)
+        
+        coord_add_T = []
+        for i in range(3):
+            coord_add_T += [coord_add[2*i+1]] + [coord_add[2*i]]
+        
+        return np.transpose(img_clipped, axes=(1,0,2)), np.array(coord_add_T)
+    else:
+        return img, coord
 
 def resize_img_coord(img, coord, output_shape):
     # Resize an image and its landmarks
@@ -49,20 +83,79 @@ def resize_img_coord(img, coord, output_shape):
         new_coord[2*i+1] = int(coord[2*i+1]*y_ratio)
     return img_resized, new_coord
 
-def save_img_coord(images, coords, filename, num_saved_imgs=16):
-    assert (np.sqrt(num_saved_imgs)-int(np.sqrt(num_saved_imgs))!=0.0, "[{:10s}] Number of saved images should be a perfect square.".format("Error")
+def save_img_coord(
+    images,                             # List of images to save. Values are in [-1, 1]
+    coords,                             # List of coordinates for landmarks. Values are in [-1, 1]
+    filename,                           # Where to save the image
+    num_saved_imgs  =16,                # Number of selected image among the list. Has to be a perfect square
+    output_shape    =(1080,1080,3)):    # Size of the output image
+    
+    # Save a list of images and its corresponding landmarks
+    assert len(images)==len(coords)
+    assert len(images) >= num_saved_imgs
+    assert (np.sqrt(num_saved_imgs)-int(np.sqrt(num_saved_imgs)))==0.0, '[{:10s}] Number of saved images should be a perfect square.'.format('Error')
+    
     # The output image will be 1080x1080
-    output = np.zeros((1080,1080,3))
-    sqrt_num = np.sqrt(num_saved_imgs)
+    w, h, _ = output_shape
+    output = np.zeros(output_shape)
+    sqrt_num = int(np.sqrt(num_saved_imgs))
+    sub_output_size = output.shape[0] // sqrt_num
+
+    if images.shape[1] == 3: images = images.transpose(0,2,3,1)
+    images = adjust_dynamic_range(images, [-1, 1], [0, 255])
+    coords = adjust_dynamic_range(coords, [-1, 1], [0, images.shape[-2]])
     new_coords = np.copy(coords)
+
     for i in range(sqrt_num):
         for j in range(sqrt_num):
-            output[sqrt_num*i:sqrt_num*(i+1),sqrt_num*j:sqrt_num*(j+1),:], new_coords[i*sqrt_num+j] = resize(images[i*sqrt_num+j], coords[i*sqrt_num+j])
-    plt.imshow(output)
+            idx = i*sqrt_num+j
+            output[sub_output_size*i:sub_output_size*(i+1),sub_output_size*j:sub_output_size*(j+1),:], new_coords[idx] = resize_img_coord(images[idx], coords[idx], (sub_output_size,sub_output_size,3))
+    
+    # Figure set up: remove the axes
+    fig = plt.figure()
+    fig.set_size_inches(w/h, 1, forward=False)
+    ax = plt.Axes(fig, [0., 0., 1., 1.])
+    ax.set_axis_off()
+    fig.add_axes(ax)
+    
+    # Display the image
+    ax.imshow(output)
+
+    # Add the labels
     for i in range(sqrt_num):
         for j in range(sqrt_num):
-            plt.plot(new_coords[i*sqrt_num+j][::2], new_coords[i*sqrt_num+j][1::2], 'o')
-    plt.savefig(filename)
+            idx = i*sqrt_num+j
+            ax.plot(new_coords[idx][::2] + j*sub_output_size, new_coords[idx][1::2] + i*sub_output_size, 'ko', markersize=0.2)
+    
+    # Save the figure
+    plt.savefig(filename, dpi = h) 
+
+def test_save_img():
+    import pandas as pd
+    PATH = '../data/landmarks/aligned/before_4/'
+    img_filenames = os.listdir(PATH)
+    df = pd.read_csv('../data/landmarks/aligned/labels/reformated_8698.csv')
+    del df['Unnamed: 0']
+    cols = df.columns
+
+    nbof_img = 16
+    images = []
+    coords = []
+    idx = 0
+    while len(images) < nbof_img:
+        if df.filename[idx] in img_filenames:
+            coord = np.array([int(df[cols[i]][idx]) for i in range(1,len(cols))])
+            img = sk.io.imread(PATH+df.filename[idx])
+            img, coord = clipping_img_coord(img, coord)
+            img, coord = resize_img_coord(img, coord, (224,224,3))
+
+            img = adjust_dynamic_range(img, [0, 255], [-1, 1])
+            coord = adjust_dynamic_range(coord, [0, 224], [-1, 1])
+
+            images += [img]
+            coords += [coord]
+        idx += 1
+    save_img_coord(np.array(images), np.array(coords), 'here.png', nbof_img)
 
 #----------------------------------------------------------------------------
 # Image utils.
@@ -374,3 +467,7 @@ def setup_text_label(text, font='Calibri', fontsize=32, padding=6, glow_size=2.0
     return value
 
 #----------------------------------------------------------------------------
+# Test
+
+if __name__=='__main__':
+    test_save_img()

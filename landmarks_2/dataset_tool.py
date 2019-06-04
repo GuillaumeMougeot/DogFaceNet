@@ -13,6 +13,7 @@ import pandas as pd
 
 import tfutil
 import dataset
+import misc
 
 #----------------------------------------------------------------------------
 
@@ -87,51 +88,6 @@ class TFRecordExporter:
 
 #----------------------------------------------------------------------------
 
-def clipping(img, coord):
-    # Clips an image to a square and pays attention to let the landmarks inside the picture
-    h, w, _ = img.shape
-    if h < w:
-        bound_min = min(coord[::2])
-        bound_max = max(coord[::2])
-        if bound_max - bound_min > h:
-            print("Shit happens sometimes... {:d} {:d} {:d}".format(bound_max, bound_min, h))
-        clip = w - h
-        d = bound_min
-        D = w - bound_max
-        left = int(d*clip/(d+D))
-        right = bound_max + D - int(D*clip/(d+D))
-        
-        coord_add = np.copy(coord)
-        coord_add[::2] -= left
-        return img[:,left:right,:], np.array(coord_add)
-    elif h > w:
-        new_coord = []
-        for i in range(3):
-            new_coord += [coord[2*i+1]] + [coord[2*i]]
-            
-        img_T = np.transpose(img, axes=(1,0,2))
-        img_clipped, coord_add = clipping(img_T, new_coord)
-        
-        coord_add_T = []
-        for i in range(3):
-            coord_add_T += [coord_add[2*i+1]] + [coord_add[2*i]]
-        
-        return np.transpose(img_clipped, axes=(1,0,2)), np.array(coord_add_T)
-    else:
-        return img, coord
-
-def resize(img, coord, output_shape):
-    # Resize an image and its landmarks
-    img_resized = sk.transform.resize(img, output_shape)
-    x_ratio = output_shape[0]/img.shape[0]
-    y_ratio = output_shape[1]/img.shape[1]
-    
-    new_coord = np.zeros(6, dtype=np.int)
-    for i in range(3):
-        new_coord[2*i] = int(coord[2*i]*x_ratio)
-        new_coord[2*i+1] = int(coord[2*i+1]*y_ratio)
-    return img_resized, new_coord
-
 def create_landmarks(
     tfrecord_dir,                   # The location of the tfrecord directory
     images_dir,                     # The location of the image directory
@@ -171,8 +127,8 @@ def create_landmarks(
         for i in range(len(df_filenames)):
             img = sk.io.imread(images_dir+'/'+df_filenames[i])
 
-            img_clipped, coord_clipped = clipping(img, df_coord[i])
-            img_resized, coord_resized = resize(img_clipped, coord_clipped, output_shape)
+            img_clipped, coord_clipped = misc.clipping_img_coord(img, df_coord[i])
+            img_resized, coord_resized = misc.resize_img_coord(img_clipped, coord_clipped, output_shape)
 
             img = img_resized.transpose(2, 0, 1)
             if (img < 2).all():
