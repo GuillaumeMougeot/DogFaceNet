@@ -38,6 +38,7 @@ class TFRecordDataset:
         self.dynamic_range      = [0, 255]
         self._tf_minibatch_in   = None
         self._tf_iterator       = None
+        self._tf_minibatch_np   = None
         self._cur_minibatch     = -1
 
         with tf.name_scope('Dataset'), tf.device('/cpu:0'):
@@ -64,6 +65,13 @@ class TFRecordDataset:
     # Get next minibatch as TensorFlow expressions.
     def get_minibatch_tf(self): # => images, labels
         return self._tf_iterator.get_next()
+
+    # Get next minibatch as NumPy arrays.
+    def get_minibatch_np(self, minibatch_size, lod=0): # => images, labels
+        self.configure(minibatch_size)
+        if self._tf_minibatch_np is None:
+            self._tf_minibatch_np = self.get_minibatch_tf()
+        return tfutil.run(self._tf_minibatch_np)
 
 #----------------------------------------------------------------------------
 # Helper func for constructing a dataset object using the given options.

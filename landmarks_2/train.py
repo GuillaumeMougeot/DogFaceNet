@@ -49,40 +49,49 @@ class TrainingSchedule:
 
 def train_landmark_detector(
     minibatch_repeats       = 4,            # Number of minibatches to run before adjusting training parameters.
-    total_kimg              = 1,         # Total length of the training, measured in thousands of real images.
+    total_kimg              = 1,            # Total length of the training, measured in thousands of real images.
     drange_net              = [-1,1],       # Dynamic range used when feeding image data to the networks.
+    snapshot_size           = 16,           # Size of the snapshot image
+    snapshot_ticks          = 100,          # Number of images before maintenance
     image_snapshot_ticks    = 1,            # How often to export image snapshots?
     network_snapshot_ticks  = 10,           # How often to export network snapshots?
     save_tf_graph           = True,         # Include full TensorFlow computation graph in the tfevents file?
-    save_weight_histograms  = False):       # Include weight histograms in the tfevents file?
+    save_weight_histograms  = False,        # Include weight histograms in the tfevents file?
+    resume_run_id           = None,         # Run ID or network pkl to resume training from, None = start from scratch.
+    resume_snapshot         = None,         # Snapshot index to resume training from, None = autodetect.
+    resume_kimg             = 0.0,          # Assumed training progress at the beginning. Affects reporting and training schedule.
+    resume_time             = 0.0):         # Assumed wallclock time at the beginning. Affects reporting.
 
     maintenance_start_time = time.time()
     training_set = dataset.load_dataset(tfrecord=config.tfrecord, verbose=True, **config.dataset)
+    # TODO: data augmentation
+    # TODO: testing set
 
     # Construct networks.
     with tf.device('/gpu:0'):
-        print('Constructing the network...')
-        # N = tfutil.Network('N', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **config.N)
-    # N.print_layers()
+        if resume_run_id is not None: # TODO: save methods
+            network_pkl = misc.locate_network_pkl(resume_run_id, resume_snapshot)
+            print('Loading networks from "%s"...' % network_pkl)
+            N = misc.load_pkl(network_pkl)
+        else:
+            print('Constructing the network...')
+            N = tfutil.Network('N', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **config.N)
+    N.print_layers()
 
     print('Building TensorFlow graph...')
     with tf.name_scope('Inputs'):
         lrate_in        = tf.placeholder(tf.float32, name='lrate_in', shape=[])
         minibatch_in    = tf.placeholder(tf.int32, name='minibatch_in', shape=[])
         reals, labels   = training_set.get_minibatch_tf()
-    # N_opt = tfutil.Optimizer(name='TrainN', learning_rate=lrate_in, **config.N_opt)
-    N_opt = tf.train.AdamOptimizer()
+    N_opt = tfutil.Optimizer(name='TrainN', learning_rate=lrate_in, **config.N_opt)
+
     with tf.device('/gpu:0'):
         reals = process_reals(reals, training_set.dynamic_range, drange_net)
-        labels = process_reals(labels, training_set.dynamic_range, drange_net)
-        with tf.name_scope('N_loss'):
-            # N_loss = tfutil.call_func_by_name(N=N, reals=reals, labels=labels, **config.N_loss)
-            # predictions = N.get_output_for(reals, is_training=True)
-            predictions = networks.dummy(reals)
-            N_loss = tf.losses.mean_squared_error(labels, predictions)
-        # N_opt.register_gradients(tf.reduce_mean(N_loss), N.trainables)
-    # N_train_op = N_opt.apply_updates()
-    N_train_op = N_opt.minimize(N_loss)
+        labels = process_reals(labels, [0, training_set.shape[-1]], drange_net)
+        with tf.name_scope('N_loss'): # TODO: loss inadapted
+            N_loss = tfutil.call_func_by_name(N=N, reals=reals, labels=labels, **config.N_loss)
+        N_opt.register_gradients(tf.reduce_mean(N_loss), N.trainables)
+    N_train_op = N_opt.apply_updates()
 
     print('Setting up result dir...')
     result_subdir = misc.create_result_subdir(config.result_dir, config.desc)
@@ -91,6 +100,13 @@ def train_landmark_detector(
         summary_log.add_graph(tf.get_default_graph())
     if save_weight_histograms:
         N.setup_weight_histograms()
+
+    test_reals, test_labels = training_set.get_minibatch_np(snapshot_size)
+    misc.save_img_coord(test_reals, test_labels, os.path.join(result_subdir, 'reals.png'), snapshot_size, adjust_range=False)
+
+    test_reals = misc.adjust_dynamic_range(test_reals, training_set.dynamic_range, drange_net)
+    test_coords = N.run(test_reals, minibatch_size=snapshot_size)
+    misc.save_img_coord(test_reals, test_coords, os.path.join(result_subdir, 'fakes.png'), snapshot_size)
 
     print('Training...')
     tfutil.run(tf.global_variables_initializer())
@@ -108,11 +124,11 @@ def train_landmark_detector(
 
         # Run training ops.
         for _ in range(minibatch_repeats):
-            _, loss, r, l = tfutil.run([N_train_op, N_loss, predictions, labels], {lrate_in: sched.N_lrate, minibatch_in: sched.minibatch})
+            _, loss = tfutil.run([N_train_op, N_loss], {lrate_in: sched.N_lrate, minibatch_in: sched.minibatch})
             cur_nimg += sched.minibatch
 
         # Perform maintenance tasks once per tick.
-        done = (cur_nimg >= total_kimg * 1000) or (cur_nimg % 100 == 0)
+        done = (cur_nimg >= total_kimg * 1000) or (cur_nimg % snapshot_ticks == 0)
         if done:
 
             cur_tick += 1
@@ -124,10 +140,10 @@ def train_landmark_detector(
             maintenance_time = tick_start_time - maintenance_start_time
             maintenance_start_time = cur_time
 
-            # Report progress.
+            # Report progress. # TODO: improved report display
             print('tick %-5d kimg %-8.1f minibatch %-4d time %-12s sec/tick %-7.1f sec/kimg %-7.2f loss %.4f' % (
                 tfutil.autosummary('Progress/tick', cur_tick),
-                tfutil.autosummary('Progress/kimg', cur_nimg / 1000.0),
+                tfutil.autosummary('Progress/kimg', cur_nimg / 1000),
                 tfutil.autosummary('Progress/minibatch', sched.minibatch),
                 misc.format_time(tfutil.autosummary('Timing/total_sec', total_time)),
                 tfutil.autosummary('Timing/sec_per_tick', tick_time),
@@ -139,8 +155,19 @@ def train_landmark_detector(
             tfutil.autosummary('Timing/total_days', total_time / (24.0 * 60.0 * 60.0))
             tfutil.save_summaries(summary_log, cur_nimg)
 
+            if cur_tick % image_snapshot_ticks == 0 or done:
+                test_coords = N.run(test_reals, minibatch_size=snapshot_size)
+                misc.save_img_coord(test_reals, test_coords, os.path.join(result_subdir, 'fakes%06d.png' % (cur_nimg // (10*snapshot_ticks))), snapshot_size)
+            if cur_tick % network_snapshot_ticks == 0 or done:
+                misc.save_pkl(N, os.path.join(result_subdir, 'network-snapshot-%06d.pkl' % (cur_nimg // (10*snapshot_ticks))))
+
             # Record start time of the next tick.
             tick_start_time = time.time()
+
+    # Write final results.
+    misc.save_pkl(N, os.path.join(result_subdir, 'network-final.pkl'))
+    summary_log.close()
+    open(os.path.join(result_subdir, '_training-done.txt'), 'wt').close()
 
 #----------------------------------------------------------------------------
 # Main entry point.

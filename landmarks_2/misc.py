@@ -88,6 +88,7 @@ def save_img_coord(
     coords,                             # List of coordinates for landmarks. Values are in [-1, 1]
     filename,                           # Where to save the image
     num_saved_imgs  =16,                # Number of selected image among the list. Has to be a perfect square
+    adjust_range    =True,
     output_shape    =(1080,1080,3)):    # Size of the output image
     
     # Save a list of images and its corresponding landmarks
@@ -102,8 +103,9 @@ def save_img_coord(
     sub_output_size = output.shape[0] // sqrt_num
 
     if images.shape[1] == 3: images = images.transpose(0,2,3,1)
-    images = adjust_dynamic_range(images, [-1, 1], [0, 255])
-    coords = adjust_dynamic_range(coords, [-1, 1], [0, images.shape[-2]])
+    if adjust_range:
+        images = adjust_dynamic_range(images, [-1, 1], [0, 1])
+        coords = adjust_dynamic_range(coords, [-1, 1], [0, images.shape[-2]])
     new_coords = np.copy(coords)
 
     for i in range(sqrt_num):
@@ -128,7 +130,8 @@ def save_img_coord(
             ax.plot(new_coords[idx][::2] + j*sub_output_size, new_coords[idx][1::2] + i*sub_output_size, 'ko', markersize=0.2)
     
     # Save the figure
-    plt.savefig(filename, dpi = h) 
+    plt.savefig(filename, dpi = h)
+    plt.close()
 
 def test_save_img():
     import pandas as pd
