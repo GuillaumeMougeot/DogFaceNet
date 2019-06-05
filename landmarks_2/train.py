@@ -52,7 +52,7 @@ def train_landmark_detector(
     total_kimg              = 1,            # Total length of the training, measured in thousands of real images.
     drange_net              = [-1,1],       # Dynamic range used when feeding image data to the networks.
     snapshot_size           = 16,           # Size of the snapshot image
-    snapshot_ticks          = 1000,          # Number of images before maintenance
+    snapshot_ticks          = 3200,         # Number of images before maintenance
     image_snapshot_ticks    = 1,            # How often to export image snapshots?
     network_snapshot_ticks  = 10,           # How often to export network snapshots?
     save_tf_graph           = True,         # Include full TensorFlow computation graph in the tfevents file?
@@ -150,7 +150,7 @@ def train_landmark_detector(
             cur_tick += 1
             cur_time = time.time()
             # tick_kimg = (cur_nimg - tick_start_nimg) / 1000.0
-            _train_loss = loss/(cur_nimg - tick_start_nimg)
+            _train_loss = _train_loss/(cur_nimg - tick_start_nimg)
             tick_start_nimg = cur_nimg
             tick_time = cur_time - tick_start_time
             total_time = cur_time - train_start_time
@@ -170,8 +170,8 @@ def train_landmark_detector(
                 misc.format_time(tfutil.autosummary('Timing/total_sec', total_time)),
                 tfutil.autosummary('Timing/sec_per_tick', tick_time),
                 tfutil.autosummary('Timing/maintenance', maintenance_time),
-                tfutil.autosummary('TrainN/train_loss', _train_loss*100),
-                tfutil.autosummary('TrainN/test_loss', _test_loss*100)
+                tfutil.autosummary('TrainN/train_loss', _train_loss),
+                tfutil.autosummary('TrainN/test_loss', _test_loss)
                 ))
 
             tfutil.autosummary('Timing/total_hours', total_time / (60.0 * 60.0))
