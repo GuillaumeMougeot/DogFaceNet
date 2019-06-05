@@ -52,7 +52,7 @@ def train_landmark_detector(
     total_kimg              = 1,            # Total length of the training, measured in thousands of real images.
     drange_net              = [-1,1],       # Dynamic range used when feeding image data to the networks.
     snapshot_size           = 16,           # Size of the snapshot image
-    snapshot_ticks          = 3200,         # Number of images before maintenance
+    snapshot_ticks          = 8192,         # Number of images before maintenance
     image_snapshot_ticks    = 10,           # How often to export image snapshots?
     network_snapshot_ticks  = 10,           # How often to export network snapshots?
     save_tf_graph           = True,         # Include full TensorFlow computation graph in the tfevents file?
