@@ -135,7 +135,7 @@ def train_landmark_detector(
 
         # Run training ops.
         for _ in range(minibatch_repeats):
-            tfutil.run([N_train_op], {lrate_in: sched.N_lrate, minibatch_in: sched.minibatch})
+            tfutil.run(N_train_op)
             cur_nimg += sched.minibatch
 
         # Perform maintenance tasks once per tick.
@@ -154,8 +154,7 @@ def train_landmark_detector(
             testing_set.configure(sched.minibatch)
             _test_loss = 0
             for _ in range(0, testing_set_len, sched.minibatch):
-                _test_loss += tfutil.run(test_loss)
-            _test_loss /= (testing_set_len/sched.minibatch)
+                _test_loss += tfutil.run(test_loss)/sched.minibatch
 
             # Report progress. # TODO: improved report display
             print('tick %-5d kimg %-8.1f minibatch %-4d time %-12s sec/tick %-7.1f sec/kimg %-7.2f maintenance %-7.2f test_loss %.4f' % (
