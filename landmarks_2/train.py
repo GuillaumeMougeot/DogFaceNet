@@ -131,40 +131,44 @@ def train_landmark_detector(
     sched = TrainingSchedule(cur_nimg, training_set, **config.sched)
     training_set.configure(sched.minibatch)
 
+    _train_loss = 0
+
     while cur_nimg < total_kimg * 1000:
 
         # Run training ops.
-        for _ in range(minibatch_repeats):
-            tfutil.run(N_train_op, {lrate_in: sched.N_lrate})
-            cur_nimg += sched.minibatch
+        # for _ in range(minibatch_repeats):
+        _, loss = tfutil.run([N_train_op, N_loss], {lrate_in: sched.N_lrate})
+        _train_loss += loss
+        cur_nimg += sched.minibatch
 
         # Perform maintenance tasks once per tick.
-        done = (cur_nimg >= total_kimg * 1000) or (cur_nimg % snapshot_ticks == 0)
-        if done:
+        if (cur_nimg >= total_kimg * 1000) or (cur_nimg % snapshot_ticks == 0):
 
             cur_tick += 1
             cur_time = time.time()
-            tick_kimg = (cur_nimg - tick_start_nimg) / 1000.0
+            # tick_kimg = (cur_nimg - tick_start_nimg) / 1000.0
             tick_start_nimg = cur_nimg
             tick_time = cur_time - tick_start_time
             total_time = cur_time - train_start_time
             maintenance_time = tick_start_time - maintenance_start_time
             maintenance_start_time = cur_time
 
+            _train_loss = loss/(cur_nimg - tick_start_nimg)
+
             testing_set.configure(sched.minibatch)
             _test_loss = 0
             for _ in range(0, testing_set_len, sched.minibatch):
-                _test_loss += tfutil.run(test_loss)/sched.minibatch
+                _test_loss += tfutil.run(test_loss)
+            _test_loss /= testing_set_len
 
             # Report progress. # TODO: improved report display
-            print('tick %-5d kimg %-8.1f minibatch %-4d time %-12s sec/tick %-7.1f sec/kimg %-7.2f maintenance %-7.2f test_loss %.4f' % (
+            print('tick %-5d kimg %-8.1f time %-12s sec/tick %-7.1f maintenance %-7.2f train_loss %.2f test_loss %.2f' % (
                 tfutil.autosummary('Progress/tick', cur_tick),
                 tfutil.autosummary('Progress/kimg', cur_nimg / 1000),
-                tfutil.autosummary('Progress/minibatch', sched.minibatch),
                 misc.format_time(tfutil.autosummary('Timing/total_sec', total_time)),
                 tfutil.autosummary('Timing/sec_per_tick', tick_time),
-                tfutil.autosummary('Timing/sec_per_kimg', tick_time / tick_kimg),
                 tfutil.autosummary('Timing/maintenance', maintenance_time),
+                tfutil.autosummary('TrainN/train_loss', _train_loss),
                 tfutil.autosummary('TrainN/test_loss', _test_loss)
                 ))
 
@@ -172,11 +176,13 @@ def train_landmark_detector(
             tfutil.autosummary('Timing/total_days', total_time / (24.0 * 60.0 * 60.0))
             tfutil.save_summaries(summary_log, cur_nimg)
 
-            if cur_tick % image_snapshot_ticks == 0 or done:
+            if cur_tick % image_snapshot_ticks == 0:
                 test_coords = N.run(test_reals, minibatch_size=snapshot_size)
                 misc.save_img_coord(test_reals, test_coords, os.path.join(result_subdir, 'fakes%06d.png' % (cur_nimg // (10*snapshot_ticks))), snapshot_size)
             # if cur_tick % network_snapshot_ticks == 0 or done:
             #     misc.save_pkl(N, os.path.join(result_subdir, 'network-snapshot-%06d.pkl' % (cur_nimg // (10*snapshot_ticks))))
+
+            _train_loss = 0
 
             # Record start time of the next tick.
             tick_start_time = time.time()
