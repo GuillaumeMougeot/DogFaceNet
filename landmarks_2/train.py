@@ -53,7 +53,7 @@ def train_landmark_detector(
     drange_net              = [-1,1],       # Dynamic range used when feeding image data to the networks.
     snapshot_size           = 16,           # Size of the snapshot image
     snapshot_ticks          = 3200,         # Number of images before maintenance
-    image_snapshot_ticks    = 1,            # How often to export image snapshots?
+    image_snapshot_ticks    = 10,           # How often to export image snapshots?
     network_snapshot_ticks  = 10,           # How often to export network snapshots?
     save_tf_graph           = True,         # Include full TensorFlow computation graph in the tfevents file?
     save_weight_histograms  = False,        # Include weight histograms in the tfevents file?
