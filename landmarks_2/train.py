@@ -135,7 +135,7 @@ def train_landmark_detector(
 
         # Run training ops.
         for _ in range(minibatch_repeats):
-            tfutil.run(N_train_op)
+            tfutil.run(N_train_op, {lrate_in: sched.N_lrate})
             cur_nimg += sched.minibatch
 
         # Perform maintenance tasks once per tick.
