@@ -142,7 +142,7 @@ def train_landmark_detector(
         cur_nimg += sched.minibatch
 
         # Perform maintenance tasks once per tick.
-        if (cur_nimg >= total_kimg * 1000) or (cur_nimg % snapshot_ticks == 0):
+        if (cur_nimg >= total_kimg * 1000) or (cur_nimg % snapshot_ticks == 0 and cur_nimg > 0):
 
             cur_tick += 1
             cur_time = time.time()
