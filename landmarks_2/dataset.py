@@ -59,9 +59,9 @@ class TFRecordDataset:
 
     def configure(self, minibatch_size):
         assert minibatch_size >= 1
-        if self._cur_minibatch != minibatch_size:
-            self._tf_init_ops.run({self._tf_minibatch_in: minibatch_size})
-            self._cur_minibatch = minibatch_size
+        # if self._cur_minibatch != minibatch_size:
+        self._tf_init_ops.run({self._tf_minibatch_in: minibatch_size})
+        self._cur_minibatch = minibatch_size
 
     # Get next minibatch as TensorFlow expressions.
     def get_minibatch_tf(self): # => images, labels

@@ -157,13 +157,14 @@ def train_landmark_detector(
             _test_loss /= (testing_set_len/sched.minibatch)
 
             # Report progress. # TODO: improved report display
-            print('tick %-5d kimg %-8.1f minibatch %-4d time %-12s sec/tick %-7.1f sec/kimg %-7.2f test_loss %.4f' % (
+            print('tick %-5d kimg %-8.1f minibatch %-4d time %-12s sec/tick %-7.1f sec/kimg %-7.2f maintenance %-7.2f test_loss %.4f' % (
                 tfutil.autosummary('Progress/tick', cur_tick),
                 tfutil.autosummary('Progress/kimg', cur_nimg / 1000),
                 tfutil.autosummary('Progress/minibatch', sched.minibatch),
                 misc.format_time(tfutil.autosummary('Timing/total_sec', total_time)),
                 tfutil.autosummary('Timing/sec_per_tick', tick_time),
                 tfutil.autosummary('Timing/sec_per_kimg', tick_time / tick_kimg),
+                tfutil.autosummary('Timing/maintenance', maintenance_time),
                 tfutil.autosummary('TrainN/test_loss', _test_loss)
                 ))
 
