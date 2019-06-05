@@ -65,6 +65,8 @@ def train_landmark_detector(
     maintenance_start_time = time.time()
     training_set = dataset.load_dataset(tfrecord=config.tfrecord_train, verbose=True, **config.dataset)
     testing_set = dataset.load_dataset(tfrecord=config.tfrecord_test, verbose=True, repeat=False, shuffle_mb=0, **config.dataset)
+    testing_set_len = len(testing_set)
+
     # TODO: data augmentation
     # TODO: testing set
 
@@ -150,9 +152,9 @@ def train_landmark_detector(
 
             testing_set.configure(sched.minibatch)
             _test_loss = 0
-            for _ in range(0, testing_set.shape[0], sched.minibatch):
+            for _ in range(0, testing_set_len, sched.minibatch):
                 _test_loss += tfutil.run(test_loss)
-            _test_loss /= (testing_set.shape[0]/sched.minibatch)
+            _test_loss /= (testing_set_len/sched.minibatch)
 
             # Report progress. # TODO: improved report display
             print('tick %-5d kimg %-8.1f minibatch %-4d time %-12s sec/tick %-7.1f sec/kimg %-7.2f test_loss %.4f' % (

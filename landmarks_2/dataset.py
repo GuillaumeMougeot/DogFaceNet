@@ -54,6 +54,7 @@ class TFRecordDataset:
                 dset = dset.prefetch(((prefetch_mb << 20) - 1) // bytes_per_item + 1)
             dset = dset.batch(self._tf_minibatch_in)
             self._tf_iterator = tf.data.Iterator.from_structure(dset.output_types, dset.output_shapes)
+            self._tf_next_element = self._tf_iterator.get_next()
             self._tf_init_ops = self._tf_iterator.make_initializer(dset)
 
     def configure(self, minibatch_size):
@@ -64,7 +65,7 @@ class TFRecordDataset:
 
     # Get next minibatch as TensorFlow expressions.
     def get_minibatch_tf(self): # => images, labels
-        return self._tf_iterator.get_next()
+        return self._tf_next_element
 
     # Get next minibatch as NumPy arrays.
     def get_minibatch_np(self, minibatch_size, lod=0): # => images, labels
@@ -72,6 +73,19 @@ class TFRecordDataset:
         if self._tf_minibatch_np is None:
             self._tf_minibatch_np = self.get_minibatch_tf()
         return tfutil.run(self._tf_minibatch_np)
+    
+    def get_length(self):
+        self._tf_init_ops.run({self._tf_minibatch_in: 1})
+        length = 0
+        while True:
+            try:
+                tfutil.run(self._tf_next_element)
+                length += 1
+            except tf.errors.OutOfRangeError:
+                return length
+
+    def __len__(self):
+        return self.get_length()
 
 #----------------------------------------------------------------------------
 # Helper func for constructing a dataset object using the given options.
