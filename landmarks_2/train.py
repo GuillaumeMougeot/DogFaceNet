@@ -147,14 +147,13 @@ def train_landmark_detector(
             cur_tick += 1
             cur_time = time.time()
             # tick_kimg = (cur_nimg - tick_start_nimg) / 1000.0
+            _train_loss = loss/(cur_nimg - tick_start_nimg)
             tick_start_nimg = cur_nimg
             tick_time = cur_time - tick_start_time
             total_time = cur_time - train_start_time
             maintenance_time = tick_start_time - maintenance_start_time
             maintenance_start_time = cur_time
-
-            _train_loss = loss/(cur_nimg - tick_start_nimg)
-
+            
             testing_set.configure(sched.minibatch)
             _test_loss = 0
             for _ in range(0, testing_set_len, sched.minibatch):
