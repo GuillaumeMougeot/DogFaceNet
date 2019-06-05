@@ -121,16 +121,16 @@ def train_landmark_detector(
     print('Training...')
     tfutil.run(tf.global_variables_initializer())
 
+    # Choose training parameters and configure training ops.
+    sched = TrainingSchedule(cur_nimg, training_set, **config.sched)
+    training_set.configure(sched.minibatch)
+
     cur_nimg = 0
     cur_tick = 0
     tick_start_nimg = cur_nimg
     tick_start_time = time.time()
     train_start_time = tick_start_time
     while cur_nimg < total_kimg * 1000:
-
-        # Choose training parameters and configure training ops.
-        sched = TrainingSchedule(cur_nimg, training_set, **config.sched)
-        training_set.configure(sched.minibatch)
 
         # Run training ops.
         for _ in range(minibatch_repeats):
