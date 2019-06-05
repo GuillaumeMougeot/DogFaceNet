@@ -75,7 +75,7 @@ def train_landmark_detector(
             print('Loading networks from "%s"...' % network_pkl)
             N = misc.load_pkl(network_pkl)
         else:
-            print('Constructing the network...') # TODO: better network
+            print('Constructing the network...') # TODO: better network (like lod-wise network)
             N = tfutil.Network('N', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **config.N)
     N.print_layers()
 
@@ -148,9 +148,11 @@ def train_landmark_detector(
             maintenance_time = tick_start_time - maintenance_start_time
             maintenance_start_time = cur_time
 
+            testing_set.configure(sched.minibatch)
             _test_loss = 0
             for _ in range(0, testing_set.shape[0], sched.minibatch):
                 _test_loss += tfutil.run(test_loss)
+            _test_loss /= (testing_set.shape[0]/sched.minibatch)
 
             # Report progress. # TODO: improved report display
             print('tick %-5d kimg %-8.1f minibatch %-4d time %-12s sec/tick %-7.1f sec/kimg %-7.2f test_loss %.4f' % (
