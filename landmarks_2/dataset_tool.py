@@ -27,14 +27,24 @@ def warning(msg):
 #----------------------------------------------------------------------------
 
 class TFRecordExporter:
-    def __init__(self, tfrecord_dir, expected_images, print_progress=True, progress_interval=10):
+    def __init__(
+        self,                       
+        tfrecord_dir,               # Directory where the images will be saved
+        expected_images,            # Number of expected images
+        tfr_prefix          = None, # Name of the saved file. (Default: Directory name)
+        print_progress      = True, # Display the progress?
+        progress_interval   = 10):  # When should it be displayed?
+
         self.tfrecord_dir       = tfrecord_dir
-        self.tfr_prefix         = os.path.join(self.tfrecord_dir, os.path.basename(self.tfrecord_dir))
+        if tfr_prefix == None:
+            self.tfr_prefix     = os.path.join(self.tfrecord_dir, os.path.basename(self.tfrecord_dir))
+        else:
+            self.tfr_prefix     = os.path.join(self.tfrecord_dir, tfr_prefix)
         self.expected_images    = expected_images
         self.cur_images         = 0
         self.shape              = None
-        tfr_opt                 = tf.python_io.TFRecordOptions(tf.python_io.TFRecordCompressionType.NONE)
-        self.tfr_writer         = tf.python_io.TFRecordWriter(self.tfr_prefix + '.tfrecords', tfr_opt)
+        self.tfr_opt            = tf.python_io.TFRecordOptions(tf.python_io.TFRecordCompressionType.NONE)
+        self.tfr_writer         = tf.python_io.TFRecordWriter(self.tfr_prefix + '.tfrecords', self.tfr_opt)
         self.print_progress     = print_progress
         self.progress_interval  = progress_interval
         if self.print_progress:
@@ -89,16 +99,18 @@ class TFRecordExporter:
 #----------------------------------------------------------------------------
 
 def create_landmarks(
-    tfrecord_dir,                   # The location of the tfrecord directory
-    images_dir,                     # The location of the image directory
-    labels_file,                    # The location of the csv file
-    output_shape    = (224,224,3)   # Output shape.
+    tfrecord_dir,                       # The location of the tfrecord directory
+    images_dir,                         # The location of the image directory
+    labels_file,                        # The location of the csv file
+    test_train_split    = 0.1,          # Proportion of images to keep for testing
+    output_shape        = (224,224,3)   # Output shape.
     ):
+    assert test_train_split >= 0 and test_train_split < 1, error('Test/train ratio has to be in [0,1)')
+
     print('Loading Landmark images from "%s"' % images_dir)
     # Retrieve image names
     image_filenames = os.listdir(images_dir)
-    if len(image_filenames) == 0:
-        error('No input images found.')
+    assert len(image_filenames) != 0, error('No input images found.')
     
     df = pd.read_csv(labels_file)
     del df['Unnamed: 0']
@@ -123,18 +135,31 @@ def create_landmarks(
     if channels not in [1, 3]:
         error('Input images must be stored as RGB or grayscale')
     
-    with TFRecordExporter(tfrecord_dir, len(df_filenames)) as tfr:
-        for i in range(len(df_filenames)):
-            img = sk.io.imread(images_dir+'/'+df_filenames[i])
+    nbof_test_fn = int(test_train_split*len(df_filenames))
 
-            img_clipped, coord_clipped = misc.clipping_img_coord(img, df_coord[i])
-            img_resized, coord_resized = misc.resize_img_coord(img_clipped, coord_clipped, output_shape)
+    def preprocess_img_coord(filename, coord):
+        img = sk.io.imread(filename)
+        img_clipped, coord_clipped = misc.clipping_img_coord(img, coord)
+        img_resized, coord_resized = misc.resize_img_coord(img_clipped, coord_clipped, output_shape)
 
-            img = img_resized.transpose(2, 0, 1)
-            if (img < 2).all():
-                img *= 255
+        img = img_resized.transpose(2, 0, 1)
+        if (img < 2).all():
+            img *= 255
+        return img, coord_resized
 
-            tfr.add_image(img, label=coord_resized)
+    print('Exporting test images...')
+    with TFRecordExporter(tfrecord_dir, nbof_test_fn, 'land-test') as tfr:
+        for i in range(nbof_test_fn):
+            img, coord = preprocess_img_coord(images_dir+'/'+df_filenames[i], df_coord[i])
+            tfr.add_image(img, label=coord)
+
+    print('Exporting train images...')
+    with TFRecordExporter(tfrecord_dir, len(df_filenames) - nbof_test_fn, 'land-train') as tfr:
+        for i in range(nbof_test_fn, len(df_filenames)):
+            img, coord = preprocess_img_coord(images_dir+'/'+df_filenames[i], df_coord[i])
+            tfr.add_image(img, label=coord)
+    
+    print('Done.')
 
 #----------------------------------------------------------------------------
 

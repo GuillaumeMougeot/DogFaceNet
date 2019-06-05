@@ -18,8 +18,9 @@ class EasyDict(dict):
 #----------------------------------------------------------------------------
 # Paths.
 
-tfrecord = '../data/landmarks/land-tfrecords/land-tfrecords.tfrecords'
-result_dir = 'results'
+tfrecord_train  = '../data/landmarks/land-tfrecords/land-train.tfrecords'
+tfrecord_test   = '../data/landmarks/land-tfrecords/land-test.tfrecords'
+result_dir      = 'results'
 
 #----------------------------------------------------------------------------
 # TensorFlow options.
