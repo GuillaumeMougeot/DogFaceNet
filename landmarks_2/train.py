@@ -99,9 +99,12 @@ def train_landmark_detector(
     N_train_op = N_opt.apply_updates()
 
     # Testing set up
-    with tf.device('/gpu:0'), tf.name_scope('N_test_loss'):
+    with tf.device('/gpu:0'):
         test_reals_tf, test_labels_tf   = testing_set.get_minibatch_tf()
-        test_loss = tfutil.call_func_by_name(N=N, reals=test_reals_tf, labels=test_labels_tf, is_training=False, **config.N_loss)
+        test_reals_tf = process_reals(test_reals_tf, training_set.dynamic_range, drange_net)
+        test_labels_tf = process_reals(test_labels_tf, [0, training_set.shape[-2]], drange_net)
+        with tf.name_scope('N_test_loss'):
+            test_loss = tfutil.call_func_by_name(N=N, reals=test_reals_tf, labels=test_labels_tf, is_training=False, **config.N_loss)
 
     print('Setting up result dir...')
     result_subdir = misc.create_result_subdir(config.result_dir, config.desc)
@@ -153,7 +156,7 @@ def train_landmark_detector(
             total_time = cur_time - train_start_time
             maintenance_time = tick_start_time - maintenance_start_time
             maintenance_start_time = cur_time
-            
+
             testing_set.configure(sched.minibatch)
             _test_loss = 0
             for _ in range(0, testing_set_len, sched.minibatch):
@@ -167,8 +170,8 @@ def train_landmark_detector(
                 misc.format_time(tfutil.autosummary('Timing/total_sec', total_time)),
                 tfutil.autosummary('Timing/sec_per_tick', tick_time),
                 tfutil.autosummary('Timing/maintenance', maintenance_time),
-                tfutil.autosummary('TrainN/train_loss', _train_loss),
-                tfutil.autosummary('TrainN/test_loss', _test_loss)
+                tfutil.autosummary('TrainN/train_loss', _train_loss*100),
+                tfutil.autosummary('TrainN/test_loss', _test_loss*100)
                 ))
 
             tfutil.autosummary('Timing/total_hours', total_time / (60.0 * 60.0))
