@@ -164,7 +164,7 @@ def train_landmark_detector(
             _test_loss /= testing_set_len
 
             # Report progress. # TODO: improved report display
-            print('tick %-5d kimg %-8.1f time %-12s sec/tick %-7.1f maintenance %-7.2f train_loss %.2f test_loss %.2f' % (
+            print('tick %-5d kimg %-6.1f time %-10s sec/tick %-3.1f maintenance %-7.2f train_loss %.4f test_loss %.4f' % (
                 tfutil.autosummary('Progress/tick', cur_tick),
                 tfutil.autosummary('Progress/kimg', cur_nimg / 1000),
                 misc.format_time(tfutil.autosummary('Timing/total_sec', total_time)),
@@ -180,7 +180,7 @@ def train_landmark_detector(
 
             if cur_tick % image_snapshot_ticks == 0:
                 test_coords = N.run(test_reals, minibatch_size=snapshot_size)
-                misc.save_img_coord(test_reals, test_coords, os.path.join(result_subdir, 'fakes%06d.png' % (cur_nimg // (10*snapshot_ticks))), snapshot_size)
+                misc.save_img_coord(test_reals, test_coords, os.path.join(result_subdir, 'fakes%06d.png' % (cur_nimg // 1000)), snapshot_size)
             # if cur_tick % network_snapshot_ticks == 0 or done:
             #     misc.save_pkl(N, os.path.join(result_subdir, 'network-snapshot-%06d.pkl' % (cur_nimg // (10*snapshot_ticks))))
 
