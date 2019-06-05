@@ -24,6 +24,10 @@ def fp32(*values):
 
 def mse(N, reals, labels, is_training=True):
     predictions = N.get_output_for(reals, is_training=is_training)
+<<<<<<< HEAD
     return tf.losses.mean_squared_error(labels, predictions, weights=10.)
+=======
+    return tf.losses.mean_squared_error(labels, predictions, weights=100.)
+>>>>>>> 2bc77daca12d4b9df42d0d1e04a923c8352cb731
 
 #----------------------------------------------------------------------------
