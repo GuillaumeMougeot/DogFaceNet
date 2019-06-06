@@ -39,7 +39,7 @@ def pre_process(
         if random_dw_conv:
             with tf.name_scope('RandomDWConv'):
                 # Parameters of the augmentation:
-                m = 0.2
+                m = 0.5
                 filt = 2*m*tf.random_uniform((3,3,3,1))-m
                 imgs = (tf.nn.depthwise_conv2d(imgs,filt, strides=[1,1,1,1], padding='SAME', data_format='NCHW') + imgs)/(1+m)
     return imgs, coords

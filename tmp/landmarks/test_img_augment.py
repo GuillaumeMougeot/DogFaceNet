@@ -8,16 +8,21 @@ img = tf.constant(img_np, dtype=tf.float32)
 img = tf.expand_dims(img, 0)
 img = (img-127.5)/127.5
 
-m = 0.2
+m = 1.0
 a = -m
 b = m
 # filt = 0.1*tf.random_uniform((3,3,3,1))
 # filt = tf.ones((3,3,3,1))
 # filt = tf.zeros((3,3,3,1))
 filt = (b-a)*tf.random_uniform((3,3,3,1))+a
+# s = [[0,1,0],
+#     [1,-4,1],
+#     [0,1, 0]]
+
+# filt = tf.constant(np.expand_dims([s,s,s], -1),dtype=tf.float32)/4
 # filt = tf.constant(filt_np, dtype=tf.float32)
 
-output = (img + tf.nn.depthwise_conv2d(img,filt, strides=[1,1,1,1], padding='SAME'))/(1+m)
+output = tf.nn.depthwise_conv2d(img,filt, strides=[1,1,1,1], padding='SAME')
 output = output*127.5 + 127.5
 output = tf.cast(output[0], tf.uint8)
 
