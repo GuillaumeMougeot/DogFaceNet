@@ -17,6 +17,11 @@ def process_reals(x, drange_data, drange_net):
         with tf.name_scope('DynamicRange'):
             x = tf.cast(x, tf.float32)
             x = misc.adjust_dynamic_range(x, drange_data, drange_net)
+        with tf.name_scope('MirrorAugment'):
+            s = tf.shape(x)
+            mask = tf.random_uniform([s[0], 1, 1, 1], 0.0, 1.0)
+            mask = tf.tile(mask, [1, s[1], s[2], s[3]])
+            x = tf.where(mask < 0.5, x, tf.reverse(x, axis=[3]))
     return x
 
 #----------------------------------------------------------------------------
