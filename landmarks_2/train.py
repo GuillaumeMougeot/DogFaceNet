@@ -18,7 +18,9 @@ def pre_process(
     drange_imgs,            # Dynamic range for the images (Typically: [0, 255])
     drange_coords,          # Dynamic range for the coordinates (Typically: [0, image.shape[0]])
     drange_net,             # Dynamic range for the network (Typically: [-1, 1])
-    mirror_augment=False):  # Should mirror augment be applied?
+    mirror_augment=False,   # Should mirror augment be applied?
+    random_dw_conv=False,   # Apply a random depthwise convolution to this input image?
+    ):  
     with tf.name_scope('ProcessReals'):
         with tf.name_scope('DynamicRange'):
             imgs = tf.cast(imgs, tf.float32)
@@ -32,6 +34,13 @@ def pre_process(
                 mask = tf.random_uniform([s[0], 1, 1, 1], 0.0, 1.0)
                 mask = tf.tile(mask, [1, s[1], s[2], s[3]])
                 imgs = tf.where(mask < 0.5, imgs, tf.reverse(imgs, axis=[3]))
+        if random_dp_conv:
+            with tf.name_scope('RandomDWConv'):
+                # Parameters of the augmentation:
+                a = 0
+                b = np.random.random()*0.5
+                filt = (b-a)*tf.random_uniform((3,3,3,1))+a
+                imgs = tf.nn.depthwise_conv2d(imgs,filt, strides=[1,1,1,1], padding='SAME')
     return imgs, coords
 
 #----------------------------------------------------------------------------
@@ -105,7 +114,7 @@ def train_landmark_detector(
     N_opt = tfutil.Optimizer(name='TrainN', learning_rate=lrate_in, **config.N_opt)
 
     with tf.device('/gpu:0'):
-        reals, labels = pre_process(reals, labels, training_set.dynamic_range, [0, training_set.shape[-2]], drange_net, mirror_augment=True)
+        reals, labels = pre_process(reals, labels, training_set.dynamic_range, [0, training_set.shape[-2]], drange_net, random_dw_conv=True)
         with tf.name_scope('N_loss'): # TODO: loss inadapted
             N_loss = tfutil.call_func_by_name(N=N, reals=reals, labels=labels, **config.N_loss)
         
