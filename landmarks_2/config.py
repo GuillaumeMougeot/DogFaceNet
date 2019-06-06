@@ -18,8 +18,8 @@ class EasyDict(dict):
 #----------------------------------------------------------------------------
 # Paths.
 
-tfrecord_train  = '../data/landmarks/land-tfrecords/land-train.tfrecords'
-tfrecord_test   = '../data/landmarks/land-tfrecords/land-test.tfrecords'
+tfrecord_train  = '../data/landmarks/land-64x64/land-train.tfrecords'
+tfrecord_test   = '../data/landmarks/land-64x64/land-test.tfrecords'
 result_dir      = 'results'
 
 #----------------------------------------------------------------------------
