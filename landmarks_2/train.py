@@ -12,16 +12,17 @@ import networks
 #----------------------------------------------------------------------------
 # Just-in-time processing of training images before feeding them to the networks.
 
-def process_reals(x, drange_data, drange_net):
+def process_reals(x, drange_data, drange_net, mirror_augment=False):
     with tf.name_scope('ProcessReals'):
         with tf.name_scope('DynamicRange'):
             x = tf.cast(x, tf.float32)
             x = misc.adjust_dynamic_range(x, drange_data, drange_net)
-        with tf.name_scope('MirrorAugment'):
-            s = tf.shape(x)
-            mask = tf.random_uniform([s[0], 1, 1, 1], 0.0, 1.0)
-            mask = tf.tile(mask, [1, s[1], s[2], s[3]])
-            x = tf.where(mask < 0.5, x, tf.reverse(x, axis=[3]))
+        if mirror_augment:
+            with tf.name_scope('MirrorAugment'):
+                s = tf.shape(x)
+                mask = tf.random_uniform([s[0], 1, 1, 1], 0.0, 1.0)
+                mask = tf.tile(mask, [1, s[1], s[2], s[3]])
+                x = tf.where(mask < 0.5, x, tf.reverse(x, axis=[3]))
     return x
 
 #----------------------------------------------------------------------------
@@ -95,7 +96,7 @@ def train_landmark_detector(
     N_opt = tfutil.Optimizer(name='TrainN', learning_rate=lrate_in, **config.N_opt)
 
     with tf.device('/gpu:0'):
-        reals = process_reals(reals, training_set.dynamic_range, drange_net)
+        reals = process_reals(reals, training_set.dynamic_range, drange_net, mirror_augment=True)
         labels = process_reals(labels, [0, training_set.shape[-2]], drange_net)
         with tf.name_scope('N_loss'): # TODO: loss inadapted
             N_loss = tfutil.call_func_by_name(N=N, reals=reals, labels=labels, **config.N_loss)
