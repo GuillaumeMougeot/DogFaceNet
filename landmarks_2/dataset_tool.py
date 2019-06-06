@@ -103,9 +103,12 @@ def create_landmarks(
     images_dir,                         # The location of the image directory
     labels_file,                        # The location of the csv file
     test_train_split    = 0.1,          # Proportion of images to keep for testing
-    output_shape        = (224,224,3)   # Output shape.
+    output_shape        = 224           # Output shape.
     ):
+    assert output_shape > 0
     assert test_train_split >= 0 and test_train_split < 1, error('Test/train ratio has to be in [0,1)')
+
+    output_shape = (output_shape, output_shape, 3)
 
     print('Loading Landmark images from "%s"' % images_dir)
     # Retrieve image names
@@ -224,7 +227,7 @@ def execute_cmdline(argv):
     p.add_argument(     'tfrecord_dir',     help='New dataset directory to be created')
     p.add_argument(     'images_dir',       help='Directory containing the images')
     p.add_argument(     'labels_file',      help='File containing the labels')
-    p.add_argument(     '--output_shape',   help='Output_shape (default: (224,224,3))', type=int, default=(224,224,3))
+    p.add_argument(     '--output_shape',   help='Output_shape (default: 224)', type=int, default=224)
 
     p = add_command(    'create_from_images', 'Create dataset from a directory full of images.',
                                             'create_from_images datasets/mydataset myimagedir')

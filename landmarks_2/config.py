@@ -39,7 +39,7 @@ env.TF_CPP_MIN_LOG_LEVEL                        = '1'       # 0 (default) = Prin
 
 desc        = 'land_detect'                                 # Description string included in result subdir name.
 random_seed = 1000                                          # Global random seed.
-dataset     = EasyDict(im_shape=(3,224,224))                # Options for dataset.load_dataset().
+dataset     = EasyDict(im_shape=(3,64,64))                # Options for dataset.load_dataset().
 train       = EasyDict(func='train.train_landmark_detector')# Options for main training func.
 N           = EasyDict(func='networks.dummy')               # Options for the network.
 N_opt       = EasyDict()                                    # Options for the optimizer.
