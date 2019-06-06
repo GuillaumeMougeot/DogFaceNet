@@ -34,7 +34,7 @@ def pre_process(
                 mask = tf.random_uniform([s[0], 1, 1, 1], 0.0, 1.0)
                 mask = tf.tile(mask, [1, s[1], s[2], s[3]])
                 imgs = tf.where(mask < 0.5, imgs, tf.reverse(imgs, axis=[3]))
-        if random_dp_conv:
+        if random_dw_conv:
             with tf.name_scope('RandomDWConv'):
                 # Parameters of the augmentation:
                 a = 0
