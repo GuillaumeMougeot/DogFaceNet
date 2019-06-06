@@ -22,25 +22,27 @@ def pre_process(
     random_dw_conv=False,   # Apply a random depthwise convolution to this input image?
     ):  
     with tf.name_scope('ProcessReals'):
-        with tf.name_scope('DynamicRange'):
-            imgs = tf.cast(imgs, tf.float32)
-            imgs = misc.adjust_dynamic_range(imgs, drange_imgs, drange_net)
-
-            coords = tf.cast(coords, tf.float32)
-            coords = misc.adjust_dynamic_range(coords, drange_coords, drange_net)
-        if mirror_augment:
-            with tf.name_scope('MirrorAugment'):
-                s = tf.shape(imgs)
-                mask = tf.random_uniform([s[0], 1, 1, 1], 0.0, 1.0)
-                mask = tf.tile(mask, [1, s[1], s[2], s[3]])
-                imgs = tf.where(mask < 0.5, imgs, tf.reverse(imgs, axis=[3]))
+        imgs = tf.cast(imgs, tf.float32)
+        coords = tf.cast(coords, tf.float32)
+        
         if random_dw_conv:
             with tf.name_scope('RandomDWConv'):
                 # Parameters of the augmentation:
                 a = 0
                 b = np.random.random()*0.5
                 filt = (b-a)*tf.random_uniform((3,3,3,1))+a
-                imgs = tf.nn.depthwise_conv2d(imgs,filt, strides=[1,1,1,1], padding='SAME')
+                imgs = tf.nn.depthwise_conv2d(imgs,filt, strides=[1,1,1,1], padding='SAME', data_format='NCHW')
+
+        with tf.name_scope('DynamicRange'):
+            imgs = misc.adjust_dynamic_range(imgs, drange_imgs, drange_net)
+            coords = misc.adjust_dynamic_range(coords, drange_coords, drange_net)
+
+        if mirror_augment:
+            with tf.name_scope('MirrorAugment'):
+                s = tf.shape(imgs)
+                mask = tf.random_uniform([s[0], 1, 1, 1], 0.0, 1.0)
+                mask = tf.tile(mask, [1, s[1], s[2], s[3]])
+                imgs = tf.where(mask < 0.5, imgs, tf.reverse(imgs, axis=[3]))
     return imgs, coords
 
 #----------------------------------------------------------------------------
