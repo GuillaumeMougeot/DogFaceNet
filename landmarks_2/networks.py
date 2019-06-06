@@ -175,8 +175,8 @@ def dummy(
     fmaps = [16,32,64,128]
 
     for i in range(0,len(fmaps),1):
-        with tf.variable_scope("Conv{:d}".format(i)):
-            x = act(apply_bias(conv2d(x, fmaps=fmaps[i], kernel=3, use_wscale=use_wscale)))
+        # with tf.variable_scope("Conv{:d}".format(i)):
+        #     x = act(apply_bias(conv2d(x, fmaps=fmaps[i], kernel=3, use_wscale=use_wscale)))
         with tf.variable_scope("Conv_down{:d}".format(i)):
             x = act(apply_bias(conv2d_downscale2d(x, fmaps=fmaps[i], kernel=3, use_wscale=use_wscale)))
             
