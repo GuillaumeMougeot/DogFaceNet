@@ -25,7 +25,7 @@ The above command will train a model and save it into output/model directory. It
 
 ### Content
 
-As previous precised, the stable version is in dogfacenet/dogfacenet.py. It contains:
+As previously described, the stable version is in dogfacenet/dogfacenet.py. It contains:
 
 * the data-preprocessing after alignment
 * the model definition and training
