@@ -26,7 +26,7 @@ from online_training import *
 #----------------------------------------------------------------------------
 # Config.
 
-PATH        = '../data/dogfacenet/'                 # Path to the directory of the saved dataset
+PATH = '../data/dogfacenet/aligned/after_4_bis/'    # Path to the directory of the saved dataset
 PATH_SAVE   = '../output/history/'                  # Path to the directory where the history will be stored
 PATH_MODEL  = '../output/model/'                    # Path to the directory where the model will be stored
 SIZE        = (224,224,3)                           # Size of the input images
@@ -43,8 +43,6 @@ VALIDATION_STEPS = 30                               # Number of steps per valida
 #----------------------------------------------------------------------------
 # Import the dataset.
 
-assert os.path.isdir(PATH), '[Error] Provided PATH for dataset does not exist.'
-
 print('Loading the dataset...')
 
 filenames = np.empty(0)
@@ -57,7 +55,6 @@ for root,dirs,files in os.walk(PATH):
         filenames = np.append(filenames,files)
         labels = np.append(labels,np.ones(len(files))*idx)
         idx += 1
-assert len(labels)!=0, '[Error] No data provided.'
 
 print('Done.')
 
@@ -184,12 +181,6 @@ if HIGH_LEVEL:
     crt_acc = 0
     batch_size = 3*10
     nbof_subclasses = 40
-
-    # Create saving folders
-    if not os.path.isdir(PATH_MODEL):
-        os.makedirs(PATH_MODEL)
-    if not os.path.isdir(PATH_SAVE):
-        os.makedirs(PATH_SAVE)
 
     # Bug fixed: keras models are to be initialized by a training on a single batch
     for images_batch,labels_batch in online_adaptive_hard_image_generator(
