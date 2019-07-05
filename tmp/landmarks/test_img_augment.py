@@ -11,10 +11,10 @@ img = (img-127.5)/127.5
 m = 1.0
 a = -m
 b = m
-# filt = 0.1*tf.random_uniform((3,3,3,1))
+filt = 0.5*tf.random_uniform((3,3,3,1))
 # filt = tf.ones((3,3,3,1))
 # filt = tf.zeros((3,3,3,1))
-filt = (b-a)*tf.random_uniform((3,3,3,1))+a
+# filt = (b-a)*tf.random_uniform((3,3,3,1))+a
 # s = [[0,1,0],
 #     [1,-4,1],
 #     [0,1, 0]]
