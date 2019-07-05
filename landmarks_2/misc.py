@@ -83,6 +83,11 @@ def resize_img_coord(img, coord, output_shape):
         new_coord[2*i+1] = int(coord[2*i+1]*y_ratio)
     return img_resized, new_coord
 
+def bbox_coord(coord):
+    # From the 6 landmarks return the coordinates of the bounding box
+    # (x1, y1, x2, y2)
+    
+
 def save_img_coord(
     images,                             # List of images to save. Values are in [-1, 1]
     coords,                             # List of coordinates for landmarks. Values are in [-1, 1]

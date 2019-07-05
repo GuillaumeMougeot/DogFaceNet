@@ -144,7 +144,7 @@ def create_landmarks(
         img = sk.io.imread(filename)
         img_clipped, coord_clipped = misc.clipping_img_coord(img, coord)
         img_resized, coord_resized = misc.resize_img_coord(img_clipped, coord_clipped, output_shape)
-
+        assert img_resized.shape == output_shape
         img = img_resized.transpose(2, 0, 1)
         if (img < 2).all():
             img *= 255
