@@ -83,10 +83,97 @@ def resize_img_coord(img, coord, output_shape):
         new_coord[2*i+1] = int(coord[2*i+1]*y_ratio)
     return img_resized, new_coord
 
-def bbox_coord(coord):
+def bbox_coord(img, coord):
     # From the 6 landmarks return the coordinates of the bounding box
-    # (x1, y1, x2, y2)
+    # (x1, y1, x2, y2) of the face
+
+    # A and b are the results of a single layer neural network trained
+    # to take as input 6 coordinates and outputs 8 parameters that
+    # represent:
+    #  - 4 parameters for a rotation (quaternion)
+    #  - 3 parameters for a translation
+    #  - 1 parameter for a resizing
+    A = np.array([[-2.7170989e-01,  1.5300398e-01, -1.3729802e-01, -2.4239977e-01, \
+          5.6131786e-01,  1.3565560e-02, -5.4057974e-01, -3.0438498e-01],
+        [-2.4932659e-01,  6.1709815e-01,  2.0384096e-01, -5.7076162e-01, \
+          2.5820252e-01,  6.4068604e-01, -3.4571856e-01, -3.8039109e-01],
+        [ 3.6703181e-01, -3.5540318e-01, -2.1373703e-01, -1.7523304e-01, \
+          3.3640495e-01, -1.1292211e-01,  4.0444374e-01,  3.5088646e-01],
+        [ 1.2811354e-01,  3.7042162e-01, -2.5829867e-01,  7.2075284e-01, \
+          2.7979067e-02,  2.6547262e-01,  3.5050452e-02, -1.8263157e-01],
+        [ 5.6548056e-04,  5.8828484e-02,  3.3033276e-01,  6.2417233e-01, \
+          2.7791748e-02,  5.0881155e-02, -4.3204486e-02, -4.1529749e-02],
+        [ 1.3910890e-01, -1.0610757e+00,  2.7555810e-02,  3.3871261e-03, \
+         -3.1195429e-01,  4.6710368e-02,  6.2814605e-01,  5.2846295e-01]], dtype=np.float32)
+    b = np.array([-0.01956358,  0.05305202,  0.01559347, -0.1411001 ,  0.03508957, \
+         0.0346183 ,  0.        ,  0.02556852], dtype=np.float32)
     
+    coord_norm = np.sqrt(np.sum(np.square(coord),axis=-1,keepdims=True))
+    coord = coord/coord_norm
+    pred = (np.dot(coord,A)+b) * coord_norm
+    coord = coord*coord_norm
+    
+    def mult_quat_np(q1, q2):
+        # Quaternion multiplication.
+        q3 = np.copy(q1)
+        q3[0] = q1[0]*q2[0] - q1[1]*q2[1] - q1[2]*q2[2] - q1[3]*q2[3]
+        q3[1] = q1[0]*q2[1] + q1[1]*q2[0] + q1[2]*q2[3] - q1[3]*q2[2]
+        q3[2] = q1[0]*q2[2] - q1[1]*q2[3] + q1[2]*q2[0] + q1[3]*q2[1]
+        q3[3] = q1[0]*q2[3] + q1[1]*q2[2] - q1[2]*q2[1] + q1[3]*q2[0]
+        return q3
+
+    def rotate_quat_np(quat, vect):
+        # Rotate a vector with the rotation defined by a quaternion.
+        # Transfrom vect into an quaternion 
+        if len(vect)==3:
+            vect = np.append([0],vect)
+        # Normalize it
+        norm_vect = np.linalg.norm(vect)
+        if norm_vect:
+            vect = vect/norm_vect
+        # Normalize the quaternion
+        norm_quat = np.linalg.norm(quat)
+        if norm_quat:
+            quat = quat/norm_quat
+        # Computes the conjugate of quat
+        quat_ = np.append(quat[0],-quat[1:])
+        # The result is given by: quat * vect * quat_
+        res = mult_quat_np(quat, mult_quat_np(vect,quat_)) * norm_vect
+        #res = np.dot(mat_quat_np(quat), np.dot(mat_quat_np(vect),quat_)) * norm_vect
+        return res[1:]
+
+    def transform_np(x, model_output):
+        q = model_output[:4]
+        t = model_output[4:7]
+        s = model_output[7]
+
+        if np.linalg.norm(x)==0:
+            out = t
+        else:
+            out = s * rotate_quat_np(q,x) + t
+
+        return np.dot(out,np.array([[1,0],[0,1],[0,0]]))
+    
+    x = [0,0.5,0.5,0.8]
+    y = transform_np(x, pred)
+    
+    def dist(v1,v2):
+        # Distance between two vectors
+        return np.sqrt((v1[0]-v2[0])**2+(v1[1]-v2[1])**2)
+    
+    potential_h = [
+        dist(coord[[0,1]],coord[[2,3]]),
+        dist([(coord[0]+coord[2])/2,(coord[1]+coord[3])/2],coord[[4,5]]),
+        dist(y,coord[[4,5]])
+    ]
+    
+    h = 2.1 * max(potential_h)
+    x1 = int(max(y[0] - h/2,0))
+    x2 = int(min(y[0] + h/2,img.shape[1]-1))
+    y1 = int(max(y[1] - h/2,0))
+    y2 = int(min(y[1] + h/2,img.shape[0]-1))
+    
+    return (x1,y1,x2,y2)
 
 def save_img_coord(
     images,                             # List of images to save. Values are in [-1, 1]

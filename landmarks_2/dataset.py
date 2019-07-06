@@ -11,6 +11,7 @@ import config
 
 def _parse_tfrecord(record):
     features = tf.parse_single_example(record, features={
+        'bbox': tf.FixedLenFeature([4], tf.int64)
         'label': tf.FixedLenFeature([6], tf.int64),
         'shape': tf.FixedLenFeature([3], tf.int64),
         'data': tf.FixedLenFeature([], tf.string)

@@ -97,6 +97,8 @@ def train_landmark_detector(
     resume_time             = 0.0):         # Assumed wallclock time at the beginning. Affects reporting.
 
     maintenance_start_time = time.time()
+    
+    # Load the datasets
     training_set = dataset.load_dataset(tfrecord=config.tfrecord_train, verbose=True, **config.dataset)
     testing_set = dataset.load_dataset(tfrecord=config.tfrecord_test, verbose=True, repeat=False, shuffle_mb=0, **config.dataset)
     testing_set_len = len(testing_set)

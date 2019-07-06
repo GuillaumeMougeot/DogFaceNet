@@ -76,16 +76,17 @@ class TFRecordExporter:
 
         img = img.astype(np.float32)
         quant = np.rint(img).clip(0, 255).astype(np.uint8)
-        if not 'label' in kwargs.keys():
+        if not 'label' in kwargs.keys() or not 'bbox' in kwargs.keys():
             ex = tf.train.Example(features=tf.train.Features(feature={
                 'shape': tf.train.Feature(int64_list=tf.train.Int64List(value=quant.shape)),
                 'data': tf.train.Feature(bytes_list=tf.train.BytesList(value=[quant.tostring()]))
                 }))
         else:
             ex = tf.train.Example(features=tf.train.Features(feature={
-                'label': tf.train.Feature(int64_list=tf.train.Int64List(value=kwargs['label'])),
-                'shape': tf.train.Feature(int64_list=tf.train.Int64List(value=quant.shape)),
-                'data': tf.train.Feature(bytes_list=tf.train.BytesList(value=[quant.tostring()]))
+                'label' : tf.train.Feature(int64_list=tf.train.Int64List(value=kwargs['label'])),
+                'bbox'  : tf.train.Feature(int64_list=tf.train.Int64List(value=kwargs['bbox'])),
+                'shape' : tf.train.Feature(int64_list=tf.train.Int64List(value=quant.shape)),
+                'data'  : tf.train.Feature(bytes_list=tf.train.BytesList(value=[quant.tostring()]))
                 }))
         self.tfr_writer.write(ex.SerializeToString())
         self.cur_images += 1
@@ -98,7 +99,7 @@ class TFRecordExporter:
 
 #----------------------------------------------------------------------------
 
-def create_landmarks(
+def create_from_images(
     tfrecord_dir,                       # The location of the tfrecord directory
     images_dir,                         # The location of the image directory
     labels_file,                        # The location of the csv file
@@ -142,55 +143,59 @@ def create_landmarks(
 
     def preprocess_img_coord(filename, coord):
         img = sk.io.imread(filename)
+        # Clip the image
         img_clipped, coord_clipped = misc.clipping_img_coord(img, coord)
+        # Resize it
         img_resized, coord_resized = misc.resize_img_coord(img_clipped, coord_clipped, output_shape)
         assert img_resized.shape == output_shape
         img = img_resized.transpose(2, 0, 1)
         if (img < 2).all():
             img *= 255
-        return img, coord_resized
+        # Compute the bounding box
+        bbox = misc.bbox_coord(img,coord)
+        return img, coord_resized, bbox
 
     print('Exporting test images...')
     with TFRecordExporter(tfrecord_dir, nbof_test_fn, 'land-test') as tfr:
         for i in range(nbof_test_fn):
-            img, coord = preprocess_img_coord(images_dir+'/'+df_filenames[i], df_coord[i])
-            tfr.add_image(img, label=coord)
+            img, coord, bbox = preprocess_img_coord(images_dir+'/'+df_filenames[i], df_coord[i])
+            tfr.add_image(img, label=coord, bbox=bbox)
 
     print('Exporting train images...')
     with TFRecordExporter(tfrecord_dir, len(df_filenames) - nbof_test_fn, 'land-train') as tfr:
         for i in range(nbof_test_fn, len(df_filenames)):
-            img, coord = preprocess_img_coord(images_dir+'/'+df_filenames[i], df_coord[i])
-            tfr.add_image(img, label=coord)
+            img, coord, bbox = preprocess_img_coord(images_dir+'/'+df_filenames[i], df_coord[i])
+            tfr.add_image(img, label=coord, bbox=bbox)
     
     print('Done.')
 
 #----------------------------------------------------------------------------
 
-def create_from_images(tfrecord_dir, image_dir, shuffle):
-    print('Loading images from "%s"' % image_dir)
-    image_filenames = sorted(glob.glob(os.path.join(image_dir, '*')))
-    if len(image_filenames) == 0:
-        error('No input images found')
+# def create_from_images(tfrecord_dir, image_dir, shuffle):
+#     print('Loading images from "%s"' % image_dir)
+#     image_filenames = sorted(glob.glob(os.path.join(image_dir, '*')))
+#     if len(image_filenames) == 0:
+#         error('No input images found')
         
-    img = np.asarray(PIL.Image.open(image_filenames[0]))
-    resolution = img.shape[0]
-    channels = img.shape[2] if img.ndim == 3 else 1
-    if img.shape[1] != resolution:
-        error('Input images must have the same width and height')
-    if resolution != 2 ** int(np.floor(np.log2(resolution))):
-        error('Input image resolution must be a power-of-two')
-    if channels not in [1, 3]:
-        error('Input images must be stored as RGB or grayscale')
+#     img = np.asarray(PIL.Image.open(image_filenames[0]))
+#     resolution = img.shape[0]
+#     channels = img.shape[2] if img.ndim == 3 else 1
+#     if img.shape[1] != resolution:
+#         error('Input images must have the same width and height')
+#     if resolution != 2 ** int(np.floor(np.log2(resolution))):
+#         error('Input image resolution must be a power-of-two')
+#     if channels not in [1, 3]:
+#         error('Input images must be stored as RGB or grayscale')
     
-    with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr:
-        order = tfr.choose_shuffled_order() if shuffle else np.arange(len(image_filenames))
-        for idx in range(order.size):
-            img = np.asarray(PIL.Image.open(image_filenames[order[idx]]))
-            if channels == 1:
-                img = img[np.newaxis, :, :] # HW => CHW
-            else:
-                img = img.transpose(2, 0, 1) # HWC => CHW
-            tfr.add_image(img)
+#     with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr:
+#         order = tfr.choose_shuffled_order() if shuffle else np.arange(len(image_filenames))
+#         for idx in range(order.size):
+#             img = np.asarray(PIL.Image.open(image_filenames[order[idx]]))
+#             if channels == 1:
+#                 img = img[np.newaxis, :, :] # HW => CHW
+#             else:
+#                 img = img.transpose(2, 0, 1) # HWC => CHW
+#             tfr.add_image(img)
 
 #----------------------------------------------------------------------------
 
@@ -198,7 +203,7 @@ def execute_cmdline(argv):
     prog = argv[0]
     parser = argparse.ArgumentParser(
         prog        = prog,
-        description = 'Tool for creating, extracting, and visualizing Progressive GAN datasets.',
+        description = 'Tool for creating and preparing Dog Face Detector datasets.',
         epilog      = 'Type "%s <command> -h" for more information.' % prog)
         
     subparsers = parser.add_subparsers(dest='command')
@@ -222,18 +227,18 @@ def execute_cmdline(argv):
     p.add_argument(     'tfrecord_dir_b',   help='Directory containing second dataset')
     p.add_argument(     '--ignore_labels',  help='Ignore labels (default: 0)', type=int, default=0)
 
-    p = add_command(    'create_landmarks', 'Create dataset from landmark detector.',
+    p = add_command(    'create_from_images', 'Create dataset from landmark detector.',
                                             'create_landmarks datasets/landmarks ~/datasets/landmarks')
     p.add_argument(     'tfrecord_dir',     help='New dataset directory to be created')
     p.add_argument(     'images_dir',       help='Directory containing the images')
     p.add_argument(     'labels_file',      help='File containing the labels')
     p.add_argument(     '--output_shape',   help='Output_shape (default: 224)', type=int, default=224)
 
-    p = add_command(    'create_from_images', 'Create dataset from a directory full of images.',
-                                            'create_from_images datasets/mydataset myimagedir')
-    p.add_argument(     'tfrecord_dir',     help='New dataset directory to be created')
-    p.add_argument(     'image_dir',        help='Directory containing the images')
-    p.add_argument(     '--shuffle',        help='Randomize image order (default: 1)', type=int, default=1)
+    # p = add_command(    'create_from_images', 'Create dataset from a directory full of images.',
+    #                                         'create_from_images datasets/mydataset myimagedir')
+    # p.add_argument(     'tfrecord_dir',     help='New dataset directory to be created')
+    # p.add_argument(     'image_dir',        help='Directory containing the images')
+    # p.add_argument(     '--shuffle',        help='Randomize image order (default: 1)', type=int, default=1)
 
     args = parser.parse_args(argv[1:] if len(argv) > 1 else ['-h'])
     func = globals()[args.command]
