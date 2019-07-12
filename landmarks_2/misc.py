@@ -1,10 +1,3 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
-#
-# This work is licensed under the Creative Commons Attribution-NonCommercial
-# 4.0 International License. To view a copy of this license, visit
-# http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to
-# Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
-
 import os
 import sys
 import glob
@@ -77,8 +70,8 @@ def resize_img_coord(img, coord, output_shape):
     x_ratio = output_shape[0]/img.shape[0]
     y_ratio = output_shape[1]/img.shape[1]
     
-    new_coord = np.zeros(6, dtype=np.int)
-    for i in range(3):
+    new_coord = np.zeros(len(coord), dtype=np.int)
+    for i in range(len(coord)//2):
         new_coord[2*i] = int(coord[2*i]*x_ratio)
         new_coord[2*i+1] = int(coord[2*i+1]*y_ratio)
     return img_resized, new_coord
@@ -220,6 +213,95 @@ def save_img_coord(
         for j in range(sqrt_num):
             idx = i*sqrt_num+j
             ax.plot(new_coords[idx][::2] + j*sub_output_size, new_coords[idx][1::2] + i*sub_output_size, 'ko', markersize=0.2)
+    
+    # Save the figure
+    plt.savefig(filename, dpi = h)
+    plt.close()
+
+# predefined_bboxes = []
+# img_shape=64
+# threshold=0.6
+
+# for window_size in range(4,17,2):
+#     ratio = img_shape/window_size
+#     for i in range(window_size-2):
+#         for j in range(window_size-2):
+#             # Computes coordinates of the region of interest in the window
+#             init_coord = np.array([i,j,i+3,j+3])
+#             # Transforms it into img_shape coordinates
+#             trans_coord = init_coord * ratio
+#             predefined_bboxes += [trans_coord]
+# predefined_bboxes = np.append([[0,0,img_shape,img_shape]],predefined_bboxes,axis=0)
+
+def convert_pred_bboxes(pred,img_shape=64,threshold=0.6):
+    # Converts network predictions to bboxes
+    bboxes = []
+    for window_size in range(4,17,2):
+        ratio = img_shape/window_size
+        for i in range(window_size-2):
+            for j in range(window_size-2):
+                # Computes coordinates of the region of interest in the window
+                init_coord = np.array([i,j,i+3,j+3])
+                # Transforms it into img_shape coordinates
+                trans_coord = init_coord * ratio
+                bboxes += [trans_coord]
+    bboxes = np.append([[0,0,img_shape,img_shape]],bboxes,axis=0)
+    return bboxes[np.argmax(pred)] # Return only the maximum
+
+def save_img_bboxes(
+    images,                             # List of images to save. Values are in [-1, 1]
+    bboxes,                             # List of coordinates for bboxes. Values are in [-1, 1]
+    filename,                           # Where to save the image
+    num_saved_imgs  =16,                # Number of selected image among the list. Has to be a perfect square
+    adjust_range    =True,
+    output_shape    =(1080,1080,3)):    # Size of the output image
+    
+    # Save a list of images and its corresponding landmarks
+    assert len(images)==len(bboxes)
+    assert len(images) >= num_saved_imgs
+    assert (np.sqrt(num_saved_imgs)-int(np.sqrt(num_saved_imgs)))==0.0, '[{:10s}] Number of saved images should be a perfect square.'.format('Error')
+    
+    # If it is the network output, converts it to bboxes
+    if bboxes.shape[1]>4: # Then it is network output
+        bboxes_transformed = np.empty((len(bboxes),4))
+        for i in range(len(bboxes_transformed)):
+            bboxes_transformed[i] = convert_pred_bboxes(bboxes[i])
+        bboxes = bboxes_transformed
+
+    # The output image will be 1080x1080
+    w, h, _ = output_shape
+    output = np.zeros(output_shape)
+    sqrt_num = int(np.sqrt(num_saved_imgs))
+    sub_output_size = output.shape[0] // sqrt_num
+
+    if images.shape[1] == 3: images = images.transpose(0,2,3,1)
+    if adjust_range:
+        images = adjust_dynamic_range(images, [-1, 1], [0, 1])
+    new_bboxes = np.copy(bboxes)
+
+    for i in range(sqrt_num):
+        for j in range(sqrt_num):
+            idx = i*sqrt_num+j
+            output[sub_output_size*i:sub_output_size*(i+1),sub_output_size*j:sub_output_size*(j+1),:], new_bboxes[idx] = resize_img_coord(images[idx], bboxes[idx], (sub_output_size,sub_output_size,3))
+    
+    # Figure set up: remove the axes
+    fig = plt.figure()
+    fig.set_size_inches(w/h, 1, forward=False)
+    ax = plt.Axes(fig, [0., 0., 1., 1.])
+    ax.set_axis_off()
+    fig.add_axes(ax)
+    
+    # Display the image
+    ax.imshow(output)
+    # Add the labels
+    for i in range(sqrt_num):
+        for j in range(sqrt_num):
+            idx = i*sqrt_num+j
+            x1,x2 = new_bboxes[idx][::2]
+            xs = np.array([x1,x2,x2,x1,x1]) + j*sub_output_size
+            y1,y2 = new_bboxes[idx][1::2]
+            ys = np.array([y1,y1,y2,y2,y1]) + i*sub_output_size
+            ax.plot(xs, ys, 'k', lw=0.2)
     
     # Save the figure
     plt.savefig(filename, dpi = h)

@@ -1,10 +1,3 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
-#
-# This work is licensed under the Creative Commons Attribution-NonCommercial
-# 4.0 International License. To view a copy of this license, visit
-# http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to
-# Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
-
 import numpy as np
 import tensorflow as tf
 
@@ -25,5 +18,16 @@ def fp32(*values):
 def mse(N, reals, labels, is_training=True):
     predictions = N.get_output_for(reals, is_training=is_training)
     return tf.losses.mean_squared_error(labels, predictions, weights=100.)
+
+#----------------------------------------------------------------------------
+# Focal loss.
+
+def focal_loss(N, reals, gt_outputs, is_training=True, alpha=0.25, gamma=2):
+    pred = N.get_output_for(reals, is_training=is_training)
+    assert gt_outputs.shape[-1] == pred.shape[-1], '[{:10s}] Prediction and ground truth shapes do not match: GT {:}, PRED {:}'.format('Error', gt_outputs.shape, pred.shape)
+    loss = - alpha * (
+        gt_outputs * tf.pow(1-pred,gamma) * tf.log(pred) + \
+        (1-gt_outputs) * tf.pow(pred,gamma) * tf.log(1-pred))
+    return tf.math.reduce_sum(loss)
 
 #----------------------------------------------------------------------------

@@ -9,12 +9,47 @@ import dataset
 import misc
 import networks
 
+def IoU(box1,box2):
+    x1 = tf.maximum(box1[0], box2[0])
+    x2 = tf.minimum(box1[2], box2[2])
+    y1 = tf.maximum(box1[1], box2[1])
+    y2 = tf.minimum(box1[3], box2[3])
+    intersection = tf.maximum(x2 - x1, 0) * tf.maximum(y2 - y1, 0)
+    box1_area = (box1[2]-box1[0])*(box1[3]-box1[1])
+    box2_area = (box2[2]-box2[0])*(box2[3]-box2[1])
+    union = box1_area + box2_area - intersection
+    iou = intersection / union
+    return iou
+
+def generate_output(img_shape, feature_maps):
+    bboxes = []
+    for window_size in feature_maps:
+        ratio = img_shape/window_size
+        for i in range(window_size-2):
+            for j in range(window_size-2):
+                # Computes coordinates of the region of interest in the window
+                init_coord = np.array([i,j,i+3,j+3])
+                # Transforms it into img_shape coordinates
+                trans_coord = init_coord * ratio
+                bboxes += [trans_coord]
+    bboxes = np.append([[0,0,img_shape,img_shape]],bboxes,axis=0)
+    return bboxes
+
+net_bboxes = tf.constant(generate_output(64, np.arange(4,17,2)), tf.float32)
+
+def bboxes_fn(bbox, net_bboxes, threshold):
+    bboxes_out = tf.map_fn(lambda x: IoU(x, bbox), net_bboxes)
+    mask = tf.cast(tf.greater(bboxes_out,threshold),tf.float32)
+    return mask
+
 #----------------------------------------------------------------------------
 # Just-in-time processing of training images before feeding them to the networks.
 
 def pre_process(
     imgs,                   # Images to pre-process
     coords,                 # Coords corresponding
+    bboxes,                 # Bounding boxes
+    #threshold,              # 
     drange_imgs,            # Dynamic range for the images (Typically: [0, 255])
     drange_coords,          # Dynamic range for the coordinates (Typically: [0, image.shape[0]])
     drange_net,             # Dynamic range for the network (Typically: [-1, 1])
@@ -51,7 +86,17 @@ def pre_process(
                     imgs = tf.image.flip_left_right(imgs)
                     mult = tf.constant([-1,1,-1,1,-1,1])
                     coords *= mult
-    return imgs, coords
+    
+    # net_bboxes = tf.constant(generate_output(64, np.arange(4,17,2)), tf.float32) # TODO: architecture independance
+    bboxes = tf.cast(bboxes, tf.float32)
+    bboxes = tf.map_fn(lambda bbox: bboxes_fn(bbox, net_bboxes, 0.6), bboxes)
+    # Remove the irrelevent boxes
+    # mask = tf.greater(tf.math.reduce_sum(bboxes,axis=-1),0)
+    # bboxes = tf.boolean_mask(bboxes, mask)
+    # imgs =  tf.boolean_mask(imgs,mask)
+    # coords =  tf.boolean_mask(coords,mask)
+
+    return imgs, coords, bboxes
 
 #----------------------------------------------------------------------------
 # Class for evaluating and storing the values of time-varying training parameters.
@@ -81,13 +126,13 @@ class TrainingSchedule:
 # Main training script.
 # To run, comment/uncomment appropriate lines in config.py and launch train.py.
 
-def train_landmark_detector(
+def train_detector(
     minibatch_repeats       = 4,            # Number of minibatches to run before adjusting training parameters.
     total_kimg              = 1,            # Total length of the training, measured in thousands of real images.
     drange_net              = [-1,1],       # Dynamic range used when feeding image data to the networks.
     snapshot_size           = 16,           # Size of the snapshot image
-    snapshot_ticks          = 8192,         # Number of images before maintenance
-    image_snapshot_ticks    = 10,           # How often to export image snapshots?
+    snapshot_ticks          = 1,          # Number of images before maintenance
+    image_snapshot_ticks    = 1,           # How often to export image snapshots?
     network_snapshot_ticks  = 10,           # How often to export network snapshots?
     save_tf_graph           = True,         # Include full TensorFlow computation graph in the tfevents file?
     save_weight_histograms  = False,        # Include weight histograms in the tfevents file?
@@ -114,31 +159,31 @@ def train_landmark_detector(
             N = misc.load_pkl(network_pkl)
         else:
             print('Constructing the network...') # TODO: better network (like lod-wise network)
-            N = tfutil.Network('N', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **config.N)
+            N = tfutil.Network('N', num_channels=training_set.shape[0], resolution=training_set.shape[1], **config.N)
     N.print_layers()
 
     print('Building TensorFlow graph...')
     # Training set up
     with tf.name_scope('Inputs'):
-        lrate_in        = tf.placeholder(tf.float32, name='lrate_in', shape=[])
-        minibatch_in    = tf.placeholder(tf.int32, name='minibatch_in', shape=[])
-        reals, labels   = training_set.get_minibatch_tf() # TODO: increase the size of the batch by several loss computation and mean
+        lrate_in                = tf.placeholder(tf.float32, name='lrate_in', shape=[])
+        # minibatch_in            = tf.placeholder(tf.int32, name='minibatch_in', shape=[])
+        reals, labels, bboxes   = training_set.get_minibatch_tf() # TODO: increase the size of the batch by several loss computation and mean
     N_opt = tfutil.Optimizer(name='TrainN', learning_rate=lrate_in, **config.N_opt)
 
     with tf.device('/gpu:0'):
-        reals, labels = pre_process(reals, labels, training_set.dynamic_range, [0, training_set.shape[-2]], drange_net, random_dw_conv=True, horizontal_flip=True)
+        reals, labels, gt_outputs = pre_process(reals, labels, bboxes, training_set.dynamic_range, [0, training_set.shape[-2]], drange_net)
         with tf.name_scope('N_loss'): # TODO: loss inadapted
-            N_loss = tfutil.call_func_by_name(N=N, reals=reals, labels=labels, **config.N_loss)
+            N_loss = tfutil.call_func_by_name(N=N, reals=reals, gt_outputs=gt_outputs, **config.N_loss)
         
         N_opt.register_gradients(tf.reduce_mean(N_loss), N.trainables)
     N_train_op = N_opt.apply_updates()
 
     # Testing set up
     with tf.device('/gpu:0'):
-        test_reals_tf, test_labels_tf   = testing_set.get_minibatch_tf()
-        test_reals_tf, test_labels_tf = pre_process(test_reals_tf, test_labels_tf, testing_set.dynamic_range, [0, testing_set.shape[-2]], drange_net)
+        test_reals_tf, test_labels_tf, test_bboxes_tf   = testing_set.get_minibatch_tf()
+        test_reals_tf, test_labels_tf, tf_gt_outputs_tf = pre_process(test_reals_tf, test_labels_tf, test_bboxes_tf, testing_set.dynamic_range, [0, testing_set.shape[-2]], drange_net)
         with tf.name_scope('N_test_loss'):
-            test_loss = tfutil.call_func_by_name(N=N, reals=test_reals_tf, labels=test_labels_tf, is_training=False, **config.N_loss)
+            test_loss = tfutil.call_func_by_name(N=N, reals=test_reals_tf, gt_outputs=tf_gt_outputs_tf, is_training=False, **config.N_loss)
 
     print('Setting up result dir...')
     result_subdir = misc.create_result_subdir(config.result_dir, config.desc)
@@ -148,12 +193,12 @@ def train_landmark_detector(
     if save_weight_histograms:
         N.setup_weight_histograms()
 
-    test_reals, test_labels = testing_set.get_minibatch_np(snapshot_size)
-    misc.save_img_coord(test_reals, test_labels, os.path.join(result_subdir, 'reals.png'), snapshot_size, adjust_range=False)
+    test_reals, _, test_bboxes = testing_set.get_minibatch_np(snapshot_size)
+    misc.save_img_bboxes(test_reals, test_bboxes, os.path.join(result_subdir, 'reals.png'), snapshot_size, adjust_range=False)
 
     test_reals = misc.adjust_dynamic_range(test_reals, training_set.dynamic_range, drange_net)
-    test_coords = N.run(test_reals, minibatch_size=snapshot_size)
-    misc.save_img_coord(test_reals, test_coords, os.path.join(result_subdir, 'fakes.png'), snapshot_size)
+    test_preds = N.run(test_reals, minibatch_size=snapshot_size)
+    misc.save_img_bboxes(test_reals, test_preds, os.path.join(result_subdir, 'fakes.png'), snapshot_size)
 
     print('Training...')
     tfutil.run(tf.global_variables_initializer())
@@ -193,9 +238,10 @@ def train_landmark_detector(
 
             testing_set.configure(sched.minibatch)
             _test_loss = 0
-            for _ in range(0, testing_set_len, sched.minibatch):
-                _test_loss += tfutil.run(test_loss)
-            _test_loss /= testing_set_len
+            # testing_set_len = 1 # TMP
+            # for _ in range(0, testing_set_len, sched.minibatch):
+            #     _test_loss += tfutil.run(test_loss)
+            # _test_loss /= testing_set_len
 
             # Report progress. # TODO: improved report display
             print('tick %-5d kimg %-6.1f time %-10s sec/tick %-3.1f maintenance %-7.2f train_loss %.4f test_loss %.4f' % (
@@ -213,8 +259,8 @@ def train_landmark_detector(
             tfutil.save_summaries(summary_log, cur_nimg)
 
             if cur_tick % image_snapshot_ticks == 0:
-                test_coords = N.run(test_reals, minibatch_size=snapshot_size)
-                misc.save_img_coord(test_reals, test_coords, os.path.join(result_subdir, 'fakes%06d.png' % (cur_nimg // 1000)), snapshot_size)
+                test_bboxes = N.run(test_reals, minibatch_size=snapshot_size)
+                misc.save_img_bboxes(test_reals, test_bboxes, os.path.join(result_subdir, 'fakes%06d.png' % (cur_nimg // 1000)), snapshot_size)
             # if cur_tick % network_snapshot_ticks == 0 or done:
             #     misc.save_pkl(N, os.path.join(result_subdir, 'network-snapshot-%06d.pkl' % (cur_nimg // (10*snapshot_ticks))))
 

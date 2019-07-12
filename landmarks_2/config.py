@@ -39,11 +39,11 @@ env.TF_CPP_MIN_LOG_LEVEL                        = '1'       # 0 (default) = Prin
 
 desc        = 'land_detect'                                 # Description string included in result subdir name.
 random_seed = 1000                                          # Global random seed.
-dataset     = EasyDict(im_shape=(3,64,64))                # Options for dataset.load_dataset().
-train       = EasyDict(func='train.train_landmark_detector')# Options for main training func.
-N           = EasyDict(func='networks.dummy')               # Options for the network.
+dataset     = EasyDict(im_shape=(3,64,64))                  # Options for dataset.load_dataset().
+train       = EasyDict(func='train.train_detector')         # Options for main training func.
+N           = EasyDict(func='networks.Detector')            # Options for the network.
 N_opt       = EasyDict()                                    # Options for the optimizer.
-N_loss      = EasyDict(func='loss.mse')                     # Options for the loss.
+N_loss      = EasyDict(func='loss.focal_loss')              # Options for the loss.
 sched       = EasyDict()                                    # Options for train.TrainingSchedule.
 grid        = EasyDict(size='1080p', layout='random')       # Options for train.setup_snapshot_image_grid().
 
@@ -51,7 +51,7 @@ grid        = EasyDict(size='1080p', layout='random')       # Options for train.
 #desc += '-celebahq';            dataset = EasyDict(tfrecord_dir='celebahq'); train.mirror_augment = True
 
 # Config presets (choose one).
-desc += '-1gpu'; num_gpus = 1; train.total_kimg = 8000; sched.minibatch_base = 64
+desc += '-1gpu'; num_gpus = 1; train.total_kimg = 8000; sched.minibatch_base = 16
 #desc += '-preset-v1-1gpu'; num_gpus = 1; D.mbstd_group_size = 16; sched.minibatch_base = 16; sched.minibatch_dict = {256: 14, 512: 6, 1024: 3}; sched.lod_training_kimg = 800; sched.lod_transition_kimg = 800; train.total_kimg = 19000
 #desc += '-preset-v2-1gpu'; num_gpus = 1; sched.minibatch_base = 4; sched.minibatch_dict = {4: 128, 8: 128, 16: 64, 32: 64, 64: 16, 128: 8, 256: 8, 512: 4}; sched.G_lrate_dict = {1024: 0.0015}; sched.D_lrate_dict = EasyDict(sched.G_lrate_dict); train.total_kimg = 12000
 #desc += '-preset-v2-2gpus'; num_gpus = 2; sched.minibatch_base = 8; sched.minibatch_dict = {4: 256, 8: 256, 16: 128, 32: 64, 64: 32, 128: 16, 256: 8}; sched.G_lrate_dict = {512: 0.0015, 1024: 0.002}; sched.D_lrate_dict = EasyDict(sched.G_lrate_dict); train.total_kimg = 12000

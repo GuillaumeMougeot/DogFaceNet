@@ -152,7 +152,7 @@ def create_from_images(
         if (img < 2).all():
             img *= 255
         # Compute the bounding box
-        bbox = misc.bbox_coord(img,coord)
+        bbox = misc.bbox_coord(img_resized,coord_resized)
         return img, coord_resized, bbox
 
     print('Exporting test images...')

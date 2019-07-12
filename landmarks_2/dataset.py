@@ -11,13 +11,13 @@ import config
 
 def _parse_tfrecord(record):
     features = tf.parse_single_example(record, features={
-        'bbox': tf.FixedLenFeature([4], tf.int64)
+        'bbox': tf.FixedLenFeature([4], tf.int64),
         'label': tf.FixedLenFeature([6], tf.int64),
         'shape': tf.FixedLenFeature([3], tf.int64),
         'data': tf.FixedLenFeature([], tf.string)
         })
     data = tf.decode_raw(features['data'], tf.uint8)
-    return tf.reshape(data, features['shape']), features['label']
+    return tf.reshape(data, features['shape']), features['label'], features['bbox']
 
 #----------------------------------------------------------------------------
 # Dataset class that loads data from tfrecords files.

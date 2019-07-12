@@ -41,11 +41,11 @@ def dense(x, fmaps, gain=np.sqrt(2), use_wscale=False):
 #----------------------------------------------------------------------------
 # Convolutional layer.
 
-def conv2d(x, fmaps, kernel, gain=np.sqrt(2), use_wscale=False):
+def conv2d(x, fmaps, kernel, gain=np.sqrt(2), use_wscale=False, padding='SAME'):
     assert kernel >= 1 and kernel % 2 == 1
     w = get_weight([kernel, kernel, x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale)
     w = tf.cast(w, x.dtype)
-    return tf.nn.conv2d(x, w, strides=[1,1,1,1], padding='SAME', data_format='NCHW')
+    return tf.nn.conv2d(x, w, strides=[1,1,1,1], padding=padding, data_format='NCHW')
 
 #----------------------------------------------------------------------------
 # Apply bias to the given activation tensor.
@@ -188,6 +188,48 @@ def dummy(
     assert labels_out.dtype == tf.as_dtype(dtype)
     labels_out = tf.identity(labels_out, name='labels_out')
     return labels_out
+
+#----------------------------------------------------------------------------
+# Detector model.
+
+def Detector(
+    images_in,
+    resolution      = 224,
+    num_channels    = 3,
+    dtype           = 'float32',
+    use_wscale = True,
+    **kwargs):
+    
+    images_in.set_shape([None, num_channels, resolution, resolution])
+    images_in = tf.cast(images_in, dtype)
+
+    act = leaky_relu
+    with tf.variable_scope("FirstLayers"):
+        with tf.variable_scope("Conv0"):
+            x = act(apply_bias(conv2d_downscale2d(images_in, fmaps=16, kernel=3, use_wscale=use_wscale)))
+        with tf.variable_scope("Conv1"):
+            x = act(apply_bias(conv2d_downscale2d(x, fmaps=32, kernel=3, use_wscale=use_wscale)))
+    
+    pyramid = []
+    with tf.variable_scope("FeatureExtractor"):
+        for i in range(7):
+            with tf.variable_scope("Conv{:d}".format(i)):
+                x = act(apply_bias(conv2d(x, fmaps=32, kernel=3, use_wscale=use_wscale, padding='VALID')))
+                pyramid = [x] + pyramid
+        with tf.variable_scope("LastStage"):
+            x = act(apply_bias(conv2d(global_avg_pool(x), fmaps=32, kernel=1, use_wscale=use_wscale, padding='VALID')))
+            pyramid = [x] + pyramid
+
+    # TODO: second try with a pyramid computation
+    with tf.variable_scope("Pyramid"):
+        for i in range(len(pyramid)):
+            with tf.variable_scope("Conv{:d}".format(i)):
+                pyramid[i] = tf.nn.sigmoid(apply_bias(conv2d(pyramid[i], fmaps=1, kernel=1, use_wscale=use_wscale)))
+                pyramid[i] = tf.reshape(pyramid[i], [-1, np.prod([d.value for d in pyramid[i].shape[1:]])])
+    
+    with tf.variable_scope("LastLayer"):
+        output = tf.concat(pyramid, axis=-1, name='concat')
+    return output
 
 #----------------------------------------------------------------------------
 # Discriminator network used in the paper.
