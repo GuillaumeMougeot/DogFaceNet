@@ -233,7 +233,7 @@ def save_img_coord(
 #             predefined_bboxes += [trans_coord]
 # predefined_bboxes = np.append([[0,0,img_shape,img_shape]],predefined_bboxes,axis=0)
 
-def convert_pred_bboxes(pred,img_shape=64,threshold=0.6):
+def convert_pred_bboxes(pred,img_shape=64,threshold=config.threshold):
     # Converts network predictions to bboxes
     bboxes = []
     for window_size in range(4,17,2):
@@ -246,7 +246,38 @@ def convert_pred_bboxes(pred,img_shape=64,threshold=0.6):
                 trans_coord = init_coord * ratio
                 bboxes += [trans_coord]
     bboxes = np.append([[0,0,img_shape,img_shape]],bboxes,axis=0)
-    return bboxes[np.argmax(pred)] # Return only the maximum
+    # return bboxes[np.argmax(pred)] # Return only the maximum
+    
+    # Non maximum-suppression:
+    # bboxes_selected = bboxes[pred > 0.2]
+    # if len(bboxes_selected)==0:
+    #     return [0,0,0,0]
+    nb = 3 # Number of selected bounding boxes
+    idx_selected = np.argsort(pred)[-nb:]
+    bboxes_selected = bboxes[idx_selected] # Select the 3 most probable bboxes
+    # Centers of the selected bboxes
+    center_x = (bboxes_selected[:,0]+bboxes_selected[:,2])/2
+    center_y = (bboxes_selected[:,1]+bboxes_selected[:,3])/2
+    # Heigths and widths of the selected bboxes
+    widths = (bboxes_selected[:,2]-bboxes_selected[:,0])
+    heights  = (bboxes_selected[:,3]-bboxes_selected[:,1])
+    # Weighted average
+    if np.linalg.norm(pred[idx_selected])>0:
+        weights = pred[idx_selected]/np.linalg.norm(pred[idx_selected])
+    else:
+        weights = pred[idx_selected]
+    center_x = np.average(center_x, weights=weights)
+    center_y = np.average(center_y, weights=weights)
+    width  = np.average(widths, weights=weights)
+    height = np.average(heights, weights=weights)
+    
+    x1 = center_x - width/2
+    y1 = center_y - height/2
+    x2 = center_x + width/2
+    y2 = center_y + height/2
+    return [x1, y1, x2, y2]
+
+
 
 def save_img_bboxes(
     images,                             # List of images to save. Values are in [-1, 1]

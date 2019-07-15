@@ -30,4 +30,11 @@ def focal_loss(N, reals, gt_outputs, is_training=True, alpha=0.25, gamma=2):
         (1-gt_outputs) * tf.pow(pred,gamma) * tf.log(1-pred))
     return tf.math.reduce_sum(loss)
 
+def sigmoid_focal_loss_2(N, reals, gt_outputs, is_training=True, alpha=0.25):
+    pred = N.get_output_for(reals, is_training=is_training)
+    assert gt_outputs.shape[-1] == pred.shape[-1], '[{:10s}] Prediction and ground truth shapes do not match: GT {:}, PRED {:}'.format('Error', gt_outputs.shape, pred.shape)
+    exp_1 = 1+tf.exp(-pred)
+    loss = alpha / tf.square(exp_1) * ((gt_outputs * (tf.exp(-2*pred)-1)+1)*tf.log(exp_1)+pred*(1-gt_outputs))
+    return tf.math.reduce_sum(loss)
+
 #----------------------------------------------------------------------------

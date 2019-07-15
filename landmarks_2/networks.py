@@ -61,7 +61,7 @@ def apply_bias(x):
 #----------------------------------------------------------------------------
 # Leaky ReLU activation. Same as tf.nn.leaky_relu, but supports FP16.
 
-def leaky_relu(x, alpha=0.2):
+def leaky_relu(x, alpha=0.0):
     with tf.name_scope('LeakyRelu'):
         alpha = tf.constant(alpha, dtype=x.dtype, name='alpha')
         return tf.maximum(x * alpha, x)
@@ -91,6 +91,17 @@ def upscale2d_conv2d(x, fmaps, kernel, gain=np.sqrt(2), use_wscale=False):
     w = tf.cast(w, x.dtype)
     os = [tf.shape(x)[0], fmaps, x.shape[2] * 2, x.shape[3] * 2]
     return tf.nn.conv2d_transpose(x, w, os, strides=[1,1,2,2], padding='SAME', data_format='NCHW')
+
+#----------------------------------------------------------------------------
+# Upscaling layer.
+
+def upsample2d(x, add=2):
+    with tf.variable_scope('Upsample2D'):
+        s = x.get_shape().as_list()
+        x = tf.transpose(x, (0,2,3,1))
+        x = tf.image.resize_images(x, [s[2]+add, s[3]+add])
+        x = tf.transpose(x, (0,3,1,2))
+        return x
 
 #----------------------------------------------------------------------------
 # Box filter downscaling layer.
@@ -209,24 +220,61 @@ def Detector(
             x = act(apply_bias(conv2d_downscale2d(images_in, fmaps=16, kernel=3, use_wscale=use_wscale)))
         with tf.variable_scope("Conv1"):
             x = act(apply_bias(conv2d_downscale2d(x, fmaps=32, kernel=3, use_wscale=use_wscale)))
-    
-    pyramid = []
+    """
     with tf.variable_scope("FeatureExtractor"):
         for i in range(7):
             with tf.variable_scope("Conv{:d}".format(i)):
                 x = act(apply_bias(conv2d(x, fmaps=32, kernel=3, use_wscale=use_wscale, padding='VALID')))
-                pyramid = [x] + pyramid
+            with tf.variable_scope("Conv0_{:d}".format(i)):
+                if i > 0:
+                    z = tf.identity(y) # Save the previous state
+                y = apply_bias(conv2d(x, fmaps=1, kernel=1, use_wscale=use_wscale))
+                y = tf.reshape(y, [-1, np.prod([d.value for d in y.shape[1:]])])
+                if i > 0:
+                    y = tf.concat([y, z], axis=-1) # Concatenate with the next one
         with tf.variable_scope("LastStage"):
             x = act(apply_bias(conv2d(global_avg_pool(x), fmaps=32, kernel=1, use_wscale=use_wscale, padding='VALID')))
+            with tf.variable_scope("Conv0_Last"):
+                z = tf.identity(y) # Save the previous state
+                y = apply_bias(conv2d(x, fmaps=1, kernel=1, use_wscale=use_wscale))
+                y = tf.reshape(y, [-1, np.prod([d.value for d in y.shape[1:]])])
+                output = tf.concat([y, z], axis=-1) # Concatenate with the next one
+    """
+    pyramid = []
+    with tf.variable_scope("FeatureExtractor"):
+        for i in range(7):
+            with tf.variable_scope("Conv{:d}".format(i)):
+                x = act(apply_bias(conv2d(x, fmaps=64, kernel=3, use_wscale=use_wscale, padding='VALID')))
+                pyramid = [x] + pyramid
+        with tf.variable_scope("LastStage"):
+            x = act(apply_bias(conv2d(global_avg_pool(x), fmaps=64, kernel=1, use_wscale=use_wscale, padding='VALID')))
             pyramid = [x] + pyramid
 
     # TODO: second try with a pyramid computation
-    with tf.variable_scope("Pyramid"):
+    # with tf.variable_scope("Pyramid"):
+    #     for i in range(len(pyramid)):
+    #         with tf.variable_scope("Conv{:d}".format(i)):
+    #             pyramid[i] = apply_bias(conv2d(pyramid[i], fmaps=1, kernel=1, use_wscale=use_wscale))
+    #             pyramid[i] = tf.reshape(pyramid[i], [-1, np.prod([d.value for d in pyramid[i].shape[1:]])])
+
+    with tf.variable_scope("Pyramid"):  
         for i in range(len(pyramid)):
+            with tf.variable_scope("Conv_before{:d}".format(i)):
+                pyramid[i] = act(apply_bias(conv2d(pyramid[i], fmaps=64, kernel=3, use_wscale=use_wscale, padding='SAME')))
+            if i == 0:
+                up = upscale2d(pyramid[i])
+            elif i < len(pyramid)-1:
+                up = upsample2d(pyramid[i])
+            if i < len(pyramid)-1:
+                with tf.variable_scope("Conv_up{:d}".format(i)):
+                    up = act(apply_bias(conv2d(up, fmaps=64, kernel=3, use_wscale=use_wscale, padding='SAME')))
+                pyramid[i+1] = pyramid[i+1] + up
+                with tf.variable_scope("Conv_add{:d}".format(i)):
+                    pyramid[i+1] = act(apply_bias(conv2d(pyramid[i+1], fmaps=64, kernel=3, use_wscale=use_wscale, padding='SAME')))
             with tf.variable_scope("Conv{:d}".format(i)):
-                pyramid[i] = tf.nn.sigmoid(apply_bias(conv2d(pyramid[i], fmaps=1, kernel=1, use_wscale=use_wscale)))
+                pyramid[i] = apply_bias(conv2d(pyramid[i], fmaps=1, kernel=1, use_wscale=use_wscale))
                 pyramid[i] = tf.reshape(pyramid[i], [-1, np.prod([d.value for d in pyramid[i].shape[1:]])])
-    
+            
     with tf.variable_scope("LastLayer"):
         output = tf.concat(pyramid, axis=-1, name='concat')
     return output

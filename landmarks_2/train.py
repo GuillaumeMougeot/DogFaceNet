@@ -9,15 +9,31 @@ import dataset
 import misc
 import networks
 
-def IoU(box1,box2):
-    x1 = tf.maximum(box1[0], box2[0])
-    x2 = tf.minimum(box1[2], box2[2])
-    y1 = tf.maximum(box1[1], box2[1])
-    y2 = tf.minimum(box1[3], box2[3])
+# def IoU(box1,box2):
+#     x1 = tf.maximum(box1[0], box2[0])
+#     x2 = tf.minimum(box1[2], box2[2])
+#     y1 = tf.maximum(box1[1], box2[1])
+#     y2 = tf.minimum(box1[3], box2[3])
+#     intersection = tf.maximum(x2 - x1, 0) * tf.maximum(y2 - y1, 0)
+#     box1_area = (box1[2]-box1[0])*(box1[3]-box1[1])
+#     box2_area = (box2[2]-box2[0])*(box2[3]-box2[1])
+#     union = box1_area + box2_area - intersection
+#     iou = intersection / union
+#     return iou
+
+def IoU(box, boxes, boxes_area):
+    """Calculates IoU of the given box with the array of the given boxes.
+    box: 1D vector [y1, x1, y2, x2]
+    boxes: [boxes_count, (y1, x1, y2, x2)]
+    """
+    # Calculate intersection areas
+    x1 = tf.maximum(box[0], boxes[:, 0])
+    x2 = tf.minimum(box[2], boxes[:, 2])
+    y1 = tf.maximum(box[1], boxes[:, 1])
+    y2 = tf.minimum(box[3], boxes[:, 3])
     intersection = tf.maximum(x2 - x1, 0) * tf.maximum(y2 - y1, 0)
-    box1_area = (box1[2]-box1[0])*(box1[3]-box1[1])
-    box2_area = (box2[2]-box2[0])*(box2[3]-box2[1])
-    union = box1_area + box2_area - intersection
+    box_area = (box[2]-box[0])*(box[3]-box[1])
+    union = box_area + boxes_area[:] - intersection[:]
     iou = intersection / union
     return iou
 
@@ -35,10 +51,15 @@ def generate_output(img_shape, feature_maps):
     bboxes = np.append([[0,0,img_shape,img_shape]],bboxes,axis=0)
     return bboxes
 
+# List of the bounding boxes for a certain type of network
+# defined by features_maps parameters.
+# The features_maps parameters store the height (or width, as it is a square)
+# of the features maps in the network.
 net_bboxes = tf.constant(generate_output(64, np.arange(4,17,2)), tf.float32)
+net_bboxes_area = (net_bboxes[:, 2] - net_bboxes[:, 0]) * (net_bboxes[:, 3] - net_bboxes[:, 1])
 
 def bboxes_fn(bbox, net_bboxes, threshold):
-    bboxes_out = tf.map_fn(lambda x: IoU(x, bbox), net_bboxes)
+    bboxes_out = IoU(bbox, net_bboxes, net_bboxes_area)
     mask = tf.cast(tf.greater(bboxes_out,threshold),tf.float32)
     return mask
 
@@ -88,8 +109,10 @@ def pre_process(
                     coords *= mult
     
     # net_bboxes = tf.constant(generate_output(64, np.arange(4,17,2)), tf.float32) # TODO: architecture independance
-    bboxes = tf.cast(bboxes, tf.float32)
-    bboxes = tf.map_fn(lambda bbox: bboxes_fn(bbox, net_bboxes, 0.6), bboxes)
+    with tf.name_scope('ProcessBboxes'):
+        bboxes = tf.cast(bboxes, tf.float32)
+        bboxes = tf.map_fn(lambda bbox: bboxes_fn(bbox, net_bboxes, config.threshold), bboxes)
+        # bboxes = tf.map_fn(lambda bbox: IoU(bbox, net_bboxes_area, config.threshold), bboxes)
     # Remove the irrelevent boxes
     # mask = tf.greater(tf.math.reduce_sum(bboxes,axis=-1),0)
     # bboxes = tf.boolean_mask(bboxes, mask)
@@ -131,8 +154,8 @@ def train_detector(
     total_kimg              = 1,            # Total length of the training, measured in thousands of real images.
     drange_net              = [-1,1],       # Dynamic range used when feeding image data to the networks.
     snapshot_size           = 16,           # Size of the snapshot image
-    snapshot_ticks          = 1,          # Number of images before maintenance
-    image_snapshot_ticks    = 1,           # How often to export image snapshots?
+    snapshot_ticks          = 2**13,          # Number of images before maintenance
+    image_snapshot_ticks    = 1,            # How often to export image snapshots?
     network_snapshot_ticks  = 10,           # How often to export network snapshots?
     save_tf_graph           = True,         # Include full TensorFlow computation graph in the tfevents file?
     save_weight_histograms  = False,        # Include weight histograms in the tfevents file?
@@ -239,9 +262,9 @@ def train_detector(
             testing_set.configure(sched.minibatch)
             _test_loss = 0
             # testing_set_len = 1 # TMP
-            # for _ in range(0, testing_set_len, sched.minibatch):
-            #     _test_loss += tfutil.run(test_loss)
-            # _test_loss /= testing_set_len
+            for _ in range(0, testing_set_len, sched.minibatch):
+                _test_loss += tfutil.run(test_loss)
+            _test_loss /= testing_set_len
 
             # Report progress. # TODO: improved report display
             print('tick %-5d kimg %-6.1f time %-10s sec/tick %-3.1f maintenance %-7.2f train_loss %.4f test_loss %.4f' % (
