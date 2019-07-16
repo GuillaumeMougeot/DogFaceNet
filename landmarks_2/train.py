@@ -9,17 +9,8 @@ import dataset
 import misc
 import networks
 
-# def IoU(box1,box2):
-#     x1 = tf.maximum(box1[0], box2[0])
-#     x2 = tf.minimum(box1[2], box2[2])
-#     y1 = tf.maximum(box1[1], box2[1])
-#     y2 = tf.minimum(box1[3], box2[3])
-#     intersection = tf.maximum(x2 - x1, 0) * tf.maximum(y2 - y1, 0)
-#     box1_area = (box1[2]-box1[0])*(box1[3]-box1[1])
-#     box2_area = (box2[2]-box2[0])*(box2[3]-box2[1])
-#     union = box1_area + box2_area - intersection
-#     iou = intersection / union
-#     return iou
+#----------------------------------------------------------------------------
+# Utils for pre-processing of training images.
 
 def IoU(box, boxes, boxes_area):
     """Calculates IoU of the given box with the array of the given boxes.
@@ -50,6 +41,29 @@ def generate_output(img_shape, feature_maps):
                 bboxes += [trans_coord]
     bboxes = np.append([[0,0,img_shape,img_shape]],bboxes,axis=0)
     return bboxes
+
+def bbox_refinement(bbox, gt_bboxes):
+    # Compute refinement needed to transform bbox to gt_bboxes.
+    bbox = tf.cast(bbox, tf.float32)
+    gt_bboxes = tf.cast(gt_bboxes, tf.float32)
+
+    height = bbox[3] - bbox[1]
+    width = bbox[2] - bbox[0]
+    center_y = bbox[1] + 0.5 * height
+    center_x = bbox[0] + 0.5 * width
+
+    gt_height = gt_bboxes[:, 3] - gt_bboxes[:, 1]
+    gt_width = gt_bboxes[:, 2] - gt_bboxes[:, 0]
+    gt_center_y = gt_bboxes[:, 1] + 0.5 * gt_height
+    gt_center_x = gt_bboxes[:, 0] + 0.5 * gt_width
+
+    dy = (gt_center_y - center_y) / height
+    dx = (gt_center_x - center_x) / width
+    dh = tf.log(gt_height / height)
+    dw = tf.log(gt_width / width)
+
+    result = tf.stack([dy, dx, dh, dw], axis=1)
+    return result
 
 # List of the bounding boxes for a certain type of network
 # defined by features_maps parameters.
@@ -111,7 +125,10 @@ def pre_process(
     # net_bboxes = tf.constant(generate_output(64, np.arange(4,17,2)), tf.float32) # TODO: architecture independance
     with tf.name_scope('ProcessBboxes'):
         bboxes = tf.cast(bboxes, tf.float32)
-        bboxes = tf.map_fn(lambda bbox: bboxes_fn(bbox, net_bboxes, config.threshold), bboxes)
+        bboxes_transformed = tf.map_fn(lambda bbox: bboxes_fn(bbox, net_bboxes, config.threshold), bboxes)
+        refinement = tf.map_fn(lambda bbox: bbox_refinement(bbox, net_bboxes), bboxes) # TODO: optimize refinement
+        # net_bboxes.shape = [561, 4]
+        # refinement.shape = [?, 561, 4]
         # bboxes = tf.map_fn(lambda bbox: IoU(bbox, net_bboxes_area, config.threshold), bboxes)
     # Remove the irrelevent boxes
     # mask = tf.greater(tf.math.reduce_sum(bboxes,axis=-1),0)
@@ -119,7 +136,7 @@ def pre_process(
     # imgs =  tf.boolean_mask(imgs,mask)
     # coords =  tf.boolean_mask(coords,mask)
 
-    return imgs, coords, bboxes
+    return imgs, coords, bboxes_transformed, refinement
 
 #----------------------------------------------------------------------------
 # Class for evaluating and storing the values of time-varying training parameters.
@@ -194,9 +211,9 @@ def train_detector(
     N_opt = tfutil.Optimizer(name='TrainN', learning_rate=lrate_in, **config.N_opt)
 
     with tf.device('/gpu:0'):
-        reals, labels, gt_outputs = pre_process(reals, labels, bboxes, training_set.dynamic_range, [0, training_set.shape[-2]], drange_net)
+        reals, labels, gt_outputs, gt_ref = pre_process(reals, labels, bboxes, training_set.dynamic_range, [0, training_set.shape[-2]], drange_net)
         with tf.name_scope('N_loss'): # TODO: loss inadapted
-            N_loss = tfutil.call_func_by_name(N=N, reals=reals, gt_outputs=gt_outputs, **config.N_loss)
+            N_loss = tfutil.call_func_by_name(N=N, reals=reals, gt_outputs=gt_outputs, gt_ref=gt_ref, **config.N_loss)
         
         N_opt.register_gradients(tf.reduce_mean(N_loss), N.trainables)
     N_train_op = N_opt.apply_updates()
@@ -204,9 +221,9 @@ def train_detector(
     # Testing set up
     with tf.device('/gpu:0'):
         test_reals_tf, test_labels_tf, test_bboxes_tf   = testing_set.get_minibatch_tf()
-        test_reals_tf, test_labels_tf, tf_gt_outputs_tf = pre_process(test_reals_tf, test_labels_tf, test_bboxes_tf, testing_set.dynamic_range, [0, testing_set.shape[-2]], drange_net)
+        test_reals_tf, test_labels_tf, test_gt_outputs_tf, test_gt_ref_tf = pre_process(test_reals_tf, test_labels_tf, test_bboxes_tf, testing_set.dynamic_range, [0, testing_set.shape[-2]], drange_net)
         with tf.name_scope('N_test_loss'):
-            test_loss = tfutil.call_func_by_name(N=N, reals=test_reals_tf, gt_outputs=tf_gt_outputs_tf, is_training=False, **config.N_loss)
+            test_loss = tfutil.call_func_by_name(N=N, reals=test_reals_tf, gt_outputs=test_gt_outputs_tf, gt_ref=test_gt_ref_tf, is_training=False, **config.N_loss)
 
     print('Setting up result dir...')
     result_subdir = misc.create_result_subdir(config.result_dir, config.desc)
@@ -220,7 +237,7 @@ def train_detector(
     misc.save_img_bboxes(test_reals, test_bboxes, os.path.join(result_subdir, 'reals.png'), snapshot_size, adjust_range=False)
 
     test_reals = misc.adjust_dynamic_range(test_reals, training_set.dynamic_range, drange_net)
-    test_preds = N.run(test_reals, minibatch_size=snapshot_size)
+    test_preds, _ = N.run(test_reals, minibatch_size=snapshot_size)
     misc.save_img_bboxes(test_reals, test_preds, os.path.join(result_subdir, 'fakes.png'), snapshot_size)
 
     print('Training...')
@@ -282,7 +299,7 @@ def train_detector(
             tfutil.save_summaries(summary_log, cur_nimg)
 
             if cur_tick % image_snapshot_ticks == 0:
-                test_bboxes = N.run(test_reals, minibatch_size=snapshot_size)
+                test_bboxes, _ = N.run(test_reals, minibatch_size=snapshot_size)
                 misc.save_img_bboxes(test_reals, test_bboxes, os.path.join(result_subdir, 'fakes%06d.png' % (cur_nimg // 1000)), snapshot_size)
             # if cur_tick % network_snapshot_ticks == 0 or done:
             #     misc.save_pkl(N, os.path.join(result_subdir, 'network-snapshot-%06d.pkl' % (cur_nimg // (10*snapshot_ticks))))

@@ -1,14 +1,3 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
-#
-# This work is licensed under the Creative Commons Attribution-NonCommercial
-# 4.0 International License. To view a copy of this license, visit
-# http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to
-# Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
-
-#----------------------------------------------------------------------------
-# Convenience class that behaves exactly like dict(), but allows accessing
-# the keys and values using the attribute syntax, i.e., "mydict.key = value".
-
 class EasyDict(dict):
     def __init__(self, *args, **kwargs): super().__init__(*args, **kwargs)
     def __getattr__(self, name): return self[name]
@@ -44,7 +33,7 @@ dataset     = EasyDict(im_shape=(3,64,64))                  # Options for datase
 train       = EasyDict(func='train.train_detector')         # Options for main training func.
 N           = EasyDict(func='networks.Detector')            # Options for the network.
 N_opt       = EasyDict()                                    # Options for the optimizer.
-N_loss      = EasyDict(func='loss.sigmoid_focal_loss_2')              # Options for the loss.
+N_loss      = EasyDict(func='loss.sigmoid_focal_loss_2_ref')              # Options for the loss.
 sched       = EasyDict()                                    # Options for train.TrainingSchedule.
 grid        = EasyDict(size='1080p', layout='random')       # Options for train.setup_snapshot_image_grid().
 

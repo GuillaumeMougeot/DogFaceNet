@@ -1,10 +1,3 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
-#
-# This work is licensed under the Creative Commons Attribution-NonCommercial
-# 4.0 International License. To view a copy of this license, visit
-# http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to
-# Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
-
 import numpy as np
 import tensorflow as tf
 
@@ -257,7 +250,25 @@ def Detector(
     #             pyramid[i] = apply_bias(conv2d(pyramid[i], fmaps=1, kernel=1, use_wscale=use_wscale))
     #             pyramid[i] = tf.reshape(pyramid[i], [-1, np.prod([d.value for d in pyramid[i].shape[1:]])])
 
-    with tf.variable_scope("Pyramid"):  
+    # with tf.variable_scope("Pyramid"):  
+    #     for i in range(len(pyramid)):
+    #         with tf.variable_scope("Conv_before{:d}".format(i)):
+    #             pyramid[i] = act(apply_bias(conv2d(pyramid[i], fmaps=64, kernel=3, use_wscale=use_wscale, padding='SAME')))
+    #         if i == 0:
+    #             up = upscale2d(pyramid[i])
+    #         elif i < len(pyramid)-1:
+    #             up = upsample2d(pyramid[i])
+    #         if i < len(pyramid)-1:
+    #             with tf.variable_scope("Conv_up{:d}".format(i)):
+    #                 up = act(apply_bias(conv2d(up, fmaps=64, kernel=3, use_wscale=use_wscale, padding='SAME')))
+    #             pyramid[i+1] = pyramid[i+1] + up
+    #             with tf.variable_scope("Conv_add{:d}".format(i)):
+    #                 pyramid[i+1] = act(apply_bias(conv2d(pyramid[i+1], fmaps=64, kernel=3, use_wscale=use_wscale, padding='SAME')))
+    #         with tf.variable_scope("Conv{:d}".format(i)):
+    #             pyramid[i] = apply_bias(conv2d(pyramid[i], fmaps=1, kernel=1, use_wscale=use_wscale))
+    #             pyramid[i] = tf.reshape(pyramid[i], [-1, np.prod([d.value for d in pyramid[i].shape[1:]])])
+    
+    with tf.name_scope("Pyramid"):  
         for i in range(len(pyramid)):
             with tf.variable_scope("Conv_before{:d}".format(i)):
                 pyramid[i] = act(apply_bias(conv2d(pyramid[i], fmaps=64, kernel=3, use_wscale=use_wscale, padding='SAME')))
@@ -271,13 +282,30 @@ def Detector(
                 pyramid[i+1] = pyramid[i+1] + up
                 with tf.variable_scope("Conv_add{:d}".format(i)):
                     pyramid[i+1] = act(apply_bias(conv2d(pyramid[i+1], fmaps=64, kernel=3, use_wscale=use_wscale, padding='SAME')))
-            with tf.variable_scope("Conv{:d}".format(i)):
-                pyramid[i] = apply_bias(conv2d(pyramid[i], fmaps=1, kernel=1, use_wscale=use_wscale))
-                pyramid[i] = tf.reshape(pyramid[i], [-1, np.prod([d.value for d in pyramid[i].shape[1:]])])
+        # First output: dog, yes or no?
+        with tf.name_scope("FirstOutput"):
+            output1 = [tf.identity(pyramid[i]) for i in range(len(pyramid))]
+            for i in range(len(output1)): 
+                with tf.variable_scope("Conv{:d}".format(i)):
+                    output1[i] = apply_bias(conv2d(output1[i], fmaps=1, kernel=1, use_wscale=use_wscale))
+                    output1[i] = tf.reshape(output1[i], [-1, np.prod([d.value for d in output1[i].shape[1:]])])
+        # Second output: refinement bounding box
+        with tf.name_scope("SecondOutput"):
+            output2 = [tf.identity(pyramid[i]) for i in range(len(pyramid))]
+            for i in range(len(output2)):
+                with tf.variable_scope("Conv{:d}_0".format(i)):
+                    output2[i] = act(apply_bias(conv2d(output2[i], fmaps=64, kernel=3, use_wscale=use_wscale, padding='SAME')))
+                with tf.variable_scope("Conv{:d}_1".format(i)):
+                    output2[i] = apply_bias(conv2d(output2[i], fmaps=4, kernel=1, use_wscale=use_wscale))
+                    output2[i] = tf.transpose(output2[i], (0,2,3,1)) # put the channel in the end
+                    output2[i] = tf.reshape(output2[i], [-1, np.prod([d.value for d in output2[i].shape[1:3]]), 4]) #[?,HxW,4]
             
+    # with tf.variable_scope("LastLayer"):
+    #     output = tf.concat(pyramid, axis=-1, name='concat')
     with tf.variable_scope("LastLayer"):
-        output = tf.concat(pyramid, axis=-1, name='concat')
-    return output
+        output1 = tf.concat(output1, axis=1, name='concat1')
+        output2 = tf.concat(output2, axis=1, name='concat2')
+    return output1, output2
 
 #----------------------------------------------------------------------------
 # Discriminator network used in the paper.
