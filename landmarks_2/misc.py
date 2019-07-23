@@ -278,7 +278,6 @@ def convert_pred_bboxes(pred,img_shape=64,threshold=config.threshold):
     # return [x1, y1, x2, y2]
 
 
-
 def save_img_bboxes(
     images,                             # List of images to save. Values are in [-1, 1]
     bboxes,                             # List of coordinates for bboxes. Values are in [-1, 1]
@@ -364,6 +363,68 @@ def test_save_img():
             coords += [coord]
         idx += 1
     save_img_coord(np.array(images), np.array(coords), 'here.png', nbof_img)
+
+def apply_box_delta(box, delta):
+    #Applies the given deltas to the given boxes.
+    box = box.astype(np.float32)
+    # Convert to y, x, h, w
+    height = box[2] - box[0]
+    width = box[3] - box[1]
+    center_y = box[0] + 0.5 * height
+    center_x = box[1] + 0.5 * width
+    # Apply deltas
+    center_y += delta[0] * height
+    center_x += delta[1] * width
+    height *= np.exp(delta[2])
+    width *= np.exp(delta[3])
+    # Convert back to y1, x1, y2, x2
+    y1 = center_y - 0.5 * height
+    x1 = center_x - 0.5 * width
+    y2 = y1 + height
+    x2 = x1 + width
+    return [y1, x1, y2, x2]
+
+def convert_pred_bboxes_ref(pred,ref,img_shape=64,threshold=config.threshold):
+    # Converts network predictions to bboxes
+    bboxes = []
+    for window_size in range(4,17,2):
+        ratio = img_shape/window_size
+        for i in range(window_size-2):
+            for j in range(window_size-2):
+                # Computes coordinates of the region of interest in the window
+                init_coord = np.array([i,j,i+3,j+3])
+                # Transforms it into img_shape coordinates
+                trans_coord = init_coord * ratio
+                bboxes += [trans_coord]
+    bboxes = np.append([[0,0,img_shape,img_shape]],bboxes,axis=0)
+    pred = 1. / (1+np.exp(-pred))
+    if max(pred) > 0.:
+        return apply_box_delta(bboxes[np.argmax(pred)],ref[np.argmax(pred)]) # Return only the maximum
+    else:
+        return np.array([0,0,0,0])
+
+def save_img_bboxes_ref(
+    images,                             # List of images to save. Values are in [-1, 1]
+    bboxes,                             # List of coordinates for bboxes. Values are in [-1, 1]
+    refinement,
+    filename,                           # Where to save the image
+    num_saved_imgs  =16,                # Number of selected image among the list. Has to be a perfect square
+    adjust_range    =True,
+    output_shape    =(1080,1080,3)):    # Size of the output image
+    # Save a list of images and its corresponding landmarks
+    assert len(images)==len(bboxes)
+    assert len(images) >= num_saved_imgs
+    assert (np.sqrt(num_saved_imgs)-int(np.sqrt(num_saved_imgs)))==0.0, '[{:10s}] Number of saved images should be a perfect square.'.format('Error')
+    
+    # If it is the network output, converts it to bboxes
+    if bboxes.shape[1]>4: # Then it is network output
+        bboxes_transformed = np.empty((len(bboxes),4))
+        for i in range(len(bboxes_transformed)):
+            bboxes_transformed[i] = convert_pred_bboxes_ref(bboxes[i],refinement[i])
+        bboxes = bboxes_transformed
+        
+    save_img_bboxes(images,bboxes_transformed,filename,num_saved_imgs=num_saved_imgs,adjust_range=adjust_range,output_shape=output_shape)
+    
 
 #----------------------------------------------------------------------------
 # Image utils.

@@ -127,6 +127,8 @@ def pre_process(
         bboxes = tf.cast(bboxes, tf.float32)
         bboxes_transformed = tf.map_fn(lambda bbox: bboxes_fn(bbox, net_bboxes, config.threshold), bboxes)
         refinement = tf.map_fn(lambda bbox: bbox_refinement(bbox, net_bboxes), bboxes) # TODO: optimize refinement
+        # Should refinement be normalized?
+
         # net_bboxes.shape = [561, 4]
         # refinement.shape = [?, 561, 4]
         # bboxes = tf.map_fn(lambda bbox: IoU(bbox, net_bboxes_area, config.threshold), bboxes)
@@ -171,9 +173,9 @@ def train_detector(
     total_kimg              = 1,            # Total length of the training, measured in thousands of real images.
     drange_net              = [-1,1],       # Dynamic range used when feeding image data to the networks.
     snapshot_size           = 16,           # Size of the snapshot image
-    snapshot_ticks          = 2**13,          # Number of images before maintenance
+    snapshot_ticks          = 2**13,        # Number of images before maintenance
     image_snapshot_ticks    = 1,            # How often to export image snapshots?
-    network_snapshot_ticks  = 10,           # How often to export network snapshots?
+    network_snapshot_ticks  = 1,            # How often to export network snapshots?
     save_tf_graph           = True,         # Include full TensorFlow computation graph in the tfevents file?
     save_weight_histograms  = False,        # Include weight histograms in the tfevents file?
     resume_run_id           = None,         # Run ID or network pkl to resume training from, None = start from scratch.
@@ -241,7 +243,8 @@ def train_detector(
     misc.save_img_bboxes(test_reals, test_preds, os.path.join(result_subdir, 'fakes.png'), snapshot_size)
 
     print('Training...')
-    tfutil.run(tf.global_variables_initializer())
+    if resume_run_id is None:
+        tfutil.run(tf.global_variables_initializer())
 
     cur_nimg = 0
     cur_tick = 0
@@ -299,10 +302,10 @@ def train_detector(
             tfutil.save_summaries(summary_log, cur_nimg)
 
             if cur_tick % image_snapshot_ticks == 0:
-                test_bboxes, _ = N.run(test_reals, minibatch_size=snapshot_size)
-                misc.save_img_bboxes(test_reals, test_bboxes, os.path.join(result_subdir, 'fakes%06d.png' % (cur_nimg // 1000)), snapshot_size)
-            # if cur_tick % network_snapshot_ticks == 0 or done:
-            #     misc.save_pkl(N, os.path.join(result_subdir, 'network-snapshot-%06d.pkl' % (cur_nimg // (10*snapshot_ticks))))
+                test_bboxes, test_refs = N.run(test_reals, minibatch_size=snapshot_size)
+                misc.save_img_bboxes_ref(test_reals, test_bboxes, test_refs, os.path.join(result_subdir, 'fakes%06d.png' % (cur_nimg // 1000)), snapshot_size)
+            if cur_tick % network_snapshot_ticks == 0:
+                misc.save_pkl(N, os.path.join(result_subdir, 'network-snapshot-%06d.pkl' % (cur_nimg // 1000)))
 
             _train_loss = 0
 

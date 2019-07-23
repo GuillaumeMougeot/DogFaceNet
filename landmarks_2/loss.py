@@ -48,10 +48,23 @@ def sigmoid_focal_loss_2_ref(N, reals, gt_outputs, gt_ref, is_training=True, alp
     exp_1 = 1+tf.exp(-pred)
     focalLoss = alpha / tf.square(exp_1) * ((gt_outputs * (tf.exp(-2*pred)-1)+1)*tf.log(exp_1)+pred*(1-gt_outputs))
     focalLoss = tf.math.reduce_sum(focalLoss)
+    # pred = tf.nn.sigmoid(pred)
+    # focalLoss = - alpha * gt_outputs * tf.square(1-pred) * tf.log(pred) - alpha * (1-gt_outputs) * tf.square(pred) * tf.log(1-pred)
+    # focalLoss = tf.math.reduce_sum(focalLoss)
 
     # Refinement loss
+    ## L2 Loss
+    # mask = (gt_outputs > 0.)
+    # pred_ref = tf.boolean_mask(pred_ref, mask)
+    # gt_ref = tf.boolean_mask(gt_ref, mask)
+    # refLoss = tf.math.reduce_sum(tf.square(pred_ref-gt_ref))
+
+    ## Smooth L1 Loss 
     mask = (gt_outputs > 0.)
     pred_ref = tf.boolean_mask(pred_ref, mask)
     gt_ref = tf.boolean_mask(gt_ref, mask)
-    refLoss = tf.math.reduce_sum(tf.square(pred_ref-gt_ref))
+    refLoss = tf.where(tf.math.abs(pred_ref-gt_ref)>1.,x=tf.math.abs(pred_ref-gt_ref),y=tf.square(pred_ref-gt_ref))
+    refLoss = tf.math.reduce_sum(refLoss)
+    # refLoss = tf.math.reduce_sum(tf.square(pred_ref-gt_ref))
+
     return focalLoss + refLoss
