@@ -173,7 +173,6 @@ print(model.summary())
 #----------------------------------------------------------------------------
 # Model training.
 
-
 if HIGH_LEVEL:
     """
     Hard training: high level of implementation

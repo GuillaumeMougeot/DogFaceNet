@@ -2,9 +2,11 @@
 
 This code is an implementation of a deep learning method for dog identification. It relies on the triplet loss defined in FaceNet paper and on novel deep learning techniques as ResNet networks.
 
-Dog faces pictures were retrieved from the web and aligned using three handmade labels. We used VIA tool to label the images.
+Dog faces pictures were retrieved from the web and aligned using three handmade labels. We used VIA tool to label the images. The dataset will be soon available.
 
-### Run this code
+This code contains also a automatic face alignement tool and several implementation of a GANs (Generative Adverserial Networks) onto the dataset.
+
+### Run the recognition algorithm
 
 To run the code you will need:
 * python >= 3.6.4
@@ -22,6 +24,22 @@ Then run the following command from the root directory of the project:
 To run properly the dataset has to be located in a data/dogfacenet folder or you will have to edit the config part of the dogfacenet.py file.
 
 The above command will train a model and save it into output/model directory. It will also save its history in output/history.
+
+### The face detector
+
+This part of the code is still in development. The current detector can for now detect dog faces on 64x64 images. Here follows a set of examples given by the current algorithm on a testing set.
+
+![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/detector.png)
+
+As the dataset contains only 3 keypoints (the two eyes and the nose) we had to modify the dataset to extract a bounding box. We created a small piece of code that automatically applies a 3D mask on the dog faces using the landmarks. We then considered has the middle of the dog brain as the middle of the bounding box. Here follows some examples of computed 3D masks:
+
+![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/mask.png)
+
+### GAN
+
+The Generative Adverserial Network created by NVIDIA in https://github.com/tkarras/progressive_growing_of_gans gives the best results on our dataset. Here follows results obtained using a single GPU (a GTX1080) during a day on the dataset:
+
+![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/gan.png)
 
 ### Content
 
