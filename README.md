@@ -25,22 +25,6 @@ To run properly the dataset has to be located in a data/dogfacenet folder or you
 
 The above command will train a model and save it into output/model directory. It will also save its history in output/history.
 
-### The face detector
-
-This part of the code is still in development. The current detector can for now detect dog faces on 64x64 images. Here follows a set of examples given by the current algorithm on a testing set.
-
-![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/detector.png)
-
-As the dataset contains only 3 keypoints (the two eyes and the nose) we had to modify the dataset to extract a bounding box. We created a small piece of code that automatically applies a 3D mask on the dog faces using the landmarks. We then considered has the middle of the dog brain as the middle of the bounding box. Here follows some examples of computed 3D masks:
-
-![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/mask.png)
-
-### GAN
-
-The Generative Adverserial Network created by NVIDIA in https://github.com/tkarras/progressive_growing_of_gans gives the best results on our dataset. Here follows results obtained using a single GPU (a GTX1080) during a day on the dataset:
-
-![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/gan.png)
-
 ### Content
 
 As previously described, the stable version is in dogfacenet/dogfacenet.py. It contains:
@@ -97,3 +81,19 @@ The obtained code presents great results on face clustering (even for dog faces 
 Here follows is an example of two of these clusters: the left one shows a correct example and the right one shows a mistake.
 
 ![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/clustering.png)
+
+### The face detector
+
+This part of the code is still in development. The current detector can for now detect dog faces on 64x64 images. Here follows a set of examples given by the current algorithm on a testing set.
+
+![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/detector.png)
+
+As the dataset contains only 3 keypoints (the two eyes and the nose) we had to modify the dataset to extract a bounding box. We created a small piece of code that automatically applies a 3D mask on the dog faces using the landmarks. We then considered has the middle of the dog brain as the middle of the bounding box. Here follows some examples of computed 3D masks:
+
+![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/mask.png)
+
+### GAN
+
+The Generative Adverserial Network created by NVIDIA in https://github.com/tkarras/progressive_growing_of_gans gives the best results on our dataset. Here follows results obtained using a single GPU (a GTX1080) during a day on the dataset:
+
+![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/gan.png)
