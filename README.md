@@ -94,6 +94,6 @@ As the dataset contains only 3 keypoints (the two eyes and the nose) we had to m
 
 ### GAN
 
-The Generative Adverserial Network created by NVIDIA in https://github.com/tkarras/progressive_growing_of_gans gives the best results on our dataset. Here follows results obtained using a single GPU (a GTX1080) during a day on the dataset:
+The Generative Adverserial Network created by NVIDIA in https://github.com/tkarras/progressive_growing_of_gans gives the best results on our dataset. Here follows the results obtained using a single GPU (a GTX1080) during a day of training on the dataset:
 
 ![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/gan.png)

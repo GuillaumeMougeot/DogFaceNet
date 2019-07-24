@@ -5,8 +5,8 @@ output/logs/
 output/model/
 output/summary/
 output/images/
-weights/
-landmarks_2/results/
+output/weights/
+detector-dev/results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -30,8 +30,8 @@ desc        = 'land_detect'                                 # Description string
 random_seed = 1000                                          # Global random seed.
 threshold   = 0.5                                           # BBox threshold.
 dataset     = EasyDict(im_shape=(3,64,64))                  # Options for dataset.load_dataset().
-train       = EasyDict(func='train.train_detector',         # Options for main training func.
-                       resume_run_id='results\\083-land_detect-1gpu-fp32\\network-snapshot-000131.pkl')         
+train       = EasyDict(func='train.train_detector')         # Options for main training func.
+                    #    resume_run_id='results\\083-land_detect-1gpu-fp32\\network-snapshot-000131.pkl')         
 N           = EasyDict(func='networks.Detector')            # Options for the network.
 N_opt       = EasyDict()                                    # Options for the optimizer.
 N_loss      = EasyDict(func='loss.sigmoid_focal_loss_2_ref')              # Options for the loss.
