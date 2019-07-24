@@ -2,10 +2,7 @@ data/
 .vscode/
 *.h5
 output/logs/
-output/model/
-output/summary/
-output/images/
-output/weights/
+output/
 detector-dev/results/
 
 # Byte-compiled / optimized / DLL files
