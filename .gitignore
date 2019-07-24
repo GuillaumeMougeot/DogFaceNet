@@ -1,7 +1,5 @@
 data/
 .vscode/
-*.h5
-output/logs/
 output/
 detector-dev/results/
 
