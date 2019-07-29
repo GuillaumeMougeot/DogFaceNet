@@ -26,19 +26,19 @@ from online_training import *
 #----------------------------------------------------------------------------
 # Config.
 
-PATH        = '../data/dogfacenet/'                 # Path to the directory of the saved dataset
-PATH_SAVE   = '../output/history/'                  # Path to the directory where the history will be stored
-PATH_MODEL  = '../output/model/'                    # Path to the directory where the model will be stored
-SIZE        = (224,224,3)                           # Size of the input images
-TEST_SPLIT  = 0.1                                   # Train/test ratio
+PATH        = '../data/dogfacenet/aligned/after_4_bis/' # Path to the directory of the saved dataset
+PATH_SAVE   = '../output/history/'                      # Path to the directory where the history will be stored
+PATH_MODEL  = '../output/model/2019.07.29/'             # Path to the directory where the model will be stored
+SIZE        = (224,224,3)                               # Size of the input images
+TEST_SPLIT  = 0.1                                       # Train/test ratio
 
-LOAD_NET    = False                                 # Load a network from a saved model? If True NET_NAME and START_EPOCH have to be precised
-NET_NAME    = '2019.05.12.dogfacenet'               # Network saved name
-START_EPOCH = 0                                     # Start the training at a specified epoch
-NBOF_EPOCHS = 250                                   # Number of epoch to train the network
-HIGH_LEVEL  = True                                  # Use high level training ('fit' keras method)
-STEPS_PER_EPOCH = 300                               # Number of steps per epoch
-VALIDATION_STEPS = 30                               # Number of steps per validation
+LOAD_NET    = False                                     # Load a network from a saved model? If True NET_NAME and START_EPOCH have to be precised
+NET_NAME    = '2019.07.29.dogfacenet'                   # Network saved name
+START_EPOCH = 0                                         # Start the training at a specified epoch
+NBOF_EPOCHS = 250                                       # Number of epoch to train the network
+HIGH_LEVEL  = True                                      # Use high level training ('fit' keras method)
+STEPS_PER_EPOCH = 300                                   # Number of steps per epoch
+VALIDATION_STEPS = 30                                   # Number of steps per validation
 
 #----------------------------------------------------------------------------
 # Import the dataset.
