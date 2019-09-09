@@ -6,6 +6,27 @@ Dog faces pictures were retrieved from the web and aligned using three handmade 
 
 This code contains also a automatic face alignement tool and several implementation of a GANs (Generative Adverserial Networks) onto the dataset.
 
+### Citation
+
+If ever this project (code or dataset) is used for a publication, please cite: [A Deep Learning Approach for Dog Face Verification and Recognition](https://link.springer.com/chapter/10.1007/978-3-030-29894-4_34)
+```
+@InProceedings{10.1007/978-3-030-29894-4_34,
+author="Mougeot, Guillaume and Li, Dewei and Jia, Shuai",
+editor="Nayak, Abhaya C. and Sharma, Alok",
+title="A Deep Learning Approach for Dog Face Verification and Recognition",
+booktitle="PRICAI 2019: Trends in Artificial Intelligence",
+year="2019",
+publisher="Springer International Publishing",
+address="Cham",
+pages="418--430",
+isbn="978-3-030-29894-4"
+}
+```
+
+### Dataset
+
+The used dataset is available for download on the releases page: [Releases Page](https://github.com/GuillaumeMougeot/DogFaceNet/releases/)
+
 ### Run the recognition algorithm
 
 To run the code you will need:

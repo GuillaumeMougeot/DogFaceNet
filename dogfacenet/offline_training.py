@@ -4,7 +4,7 @@ Functions for offline training.
 The online_training module should be prefered instead of this one.
 offline_training will load all the dataset into computer memory.
 Even if the training is slighty faster the computer can rapidly
-ran out of memory.
+run out of memory.
 
 Licensed under the MIT License (see LICENSE for details)
 Written by Guillaume Mougeot
