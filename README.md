@@ -50,8 +50,9 @@ The above command will train a model and save it into output/model directory. It
 
 As previously described, the stable version is in dogfacenet/dogfacenet.py. It contains:
 
-* the data-preprocessing after alignment
+* the online and offline training module
 * the model definition and training
+* the model evaluation (still in development)
 
 The dogfacenet-dev folder contains the developer version of the code. Model evaluation (verification, recognition, clustering, ROC curve, observation on the heatmap, ...) is in developer folder. It will be transfer in stable folder soon. The main dev version is in dogfacenet-dev/dogfacenet_v12-dev.ipynb jupyter notebook file.
 
