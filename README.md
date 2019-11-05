@@ -2,9 +2,9 @@
 
 This code is an implementation of a deep learning method for dog identification. It relies on the triplet loss defined in FaceNet paper and on novel deep learning techniques as ResNet networks.
 
-Dog faces pictures were retrieved from the web and aligned using three handmade labels. We used VIA tool to label the images. The dataset will be soon available.
+Dog faces pictures were retrieved from the web and aligned using three handmade labels. We used VIA tool to label the images. The dataset is available here: [Releases Page](https://github.com/GuillaumeMougeot/DogFaceNet/releases/).
 
-This code contains also a automatic face alignement tool and several implementation of a GANs (Generative Adverserial Networks) onto the dataset.
+This code contains also an automatic face alignement tool and several implementation of GANs (Generative Adverserial Networks) onto the dataset.
 
 ### Citation
 
@@ -31,7 +31,7 @@ The used dataset is available for download on the releases page: [Releases Page]
 
 To run the code you will need:
 * python >= 3.6.4
-* tensorflow >= 1.12.0
+* tensorflow == 1.12.0 (this constraint will be improved)
 * numpy >= 1.14.0
 * matplotlib >= 2.1.2
 * scikit-image >= 0.13.1
@@ -50,13 +50,12 @@ The above command will train a model and save it into output/model directory. It
 
 As previously described, the stable version is in dogfacenet/dogfacenet.py. It contains:
 
-* the online and offline training module
+* the online and offline training modules
 * the model definition and training
 * the model evaluation (still in development)
 
 The dogfacenet-dev folder contains the developer version of the code. Model evaluation (verification, recognition, clustering, ROC curve, observation on the heatmap, ...) is in developer folder. It will be transfer in stable folder soon. The main dev version is in dogfacenet-dev/dogfacenet_v12-dev.ipynb jupyter notebook file.
 
-The dataset is not available for now, but coming soon...
 The rest of the project contains:
 
 * (data: the images of the project) not available right now...
@@ -87,6 +86,8 @@ The rest of the project contains:
 
 ### Results on face verification
 
+UPDATE: the now available dataset is bigger (around 8600 pictures) than the one presented in the article (around 1400 pictures). The following results (and the one presented in the paper) were found using the small dataset. The results on the big dataset are unfortunately worse than the one on the small dataset (86% accuracy on the open-set): this can be explained knowing that there are much more dogs per breed in the test set, it thus makes the problem harder (two different dogs of the same breed are very similar).
+
 The current version of the code reaches 92% accuracy on an open-set (48 unknown dogs) of pairs of dogs pictures. That is to say that for a pair of pictures representing either the same dog or two different dogs, the current code could tell if it is the same dog or not with an accuracy of 92%.
 
 Here is the corresponding ROC curve:
@@ -110,7 +111,7 @@ This part of the code is still in development. The current detector can for now 
 
 ![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/detector.png)
 
-As the dataset contains only 3 keypoints (the two eyes and the nose) we had to modify the dataset to extract a bounding box. We created a small piece of code that automatically applies a 3D mask on the dog faces using the landmarks. We then considered has the middle of the dog brain as the middle of the bounding box. Here follows some examples of computed 3D masks:
+As the dataset contains only 3 keypoints (the two eyes and the nose) we had to modify the dataset to extract a bounding box. We created a small piece of code that automatically applies a 3D mask on the dog faces using the landmarks. We then considered the middle of the dog brain as the middle of the bounding box. Here follows some examples of computed 3D masks:
 
 ![picture alt](https://github.com/GuillaumeMougeot/DogFaceNet/blob/master/images/mask.png)
 
