@@ -2,7 +2,7 @@
 
 This code is an implementation of a deep learning method for dog identification. It relies on the triplet loss defined in FaceNet paper and on novel deep learning techniques as ResNet networks.
 
-Dog faces pictures were retrieved from the web and aligned using three handmade labels. We used VIA tool to label the images. The dataset is available here: [Releases Page](https://github.com/GuillaumeMougeot/DogFaceNet/releases/).
+Dog faces pictures were retrieved from the web and aligned using three handmade labels. We used VIA tool to label the images. The dataset is available here: [Zenodo](https://zenodo.org/records/12578449) and the old dataset here: [Releases Page](https://github.com/GuillaumeMougeot/DogFaceNet/releases/).
 
 This code contains also an automatic face alignement tool and several implementation of GANs (Generative Adverserial Networks) onto the dataset.
 
