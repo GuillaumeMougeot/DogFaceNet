@@ -25,6 +25,7 @@ isbn="978-3-030-29894-4"
 
 ### Dataset
 
+**[NEWS 2026/04/29] DogFaceNet_224resize dataset is available on [HuggingFace](https://huggingface.co/datasets/dimidagd/DogFaceNet_224resize) - thanks Dimitris Dagdilelis**
 **[NEWS 2024/06/28] The complete dataset is now available on [Zenodo](https://zenodo.org/records/12578449).**
 
 The old dataset is still available for download on the releases page: [Releases Page](https://github.com/GuillaumeMougeot/DogFaceNet/releases/)
